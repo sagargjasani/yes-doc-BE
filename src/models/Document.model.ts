@@ -23,7 +23,7 @@ export class Document extends TimeStamps {
   public documentName!: string;
 
   @prop({ type: () => String, required: true })
-  public originalName!: string;
+  public originalName!: string; // Used to displayy in FE
 
   @prop({ type: () => String, required: true })
   public mimeType!: string;

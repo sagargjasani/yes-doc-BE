@@ -12,6 +12,7 @@ import fse from "fs-extra";
 import { downloadS3File, generatePresignedGetUrl, uploadS3File, getCandidateS3Key } from './s3.service';
 import { formatDates } from '../utils/formatters';
 import { generateDocx } from '../utils/docx';
+import { applicationFormsList } from '../constants/applicationFormsList';
 
 export class CandidateService {
   async addCandidate(data: AddCandidateDto) {
@@ -171,48 +172,50 @@ export class CandidateService {
       }
 
       const signatureBuffer = await downloadS3File(singatureKey.s3Key);
-      const signPath = `./temps/${id}/applicationForm/sign.png`;
+      const signPath = `./temps/${id}/sign.png`;
 
       await fse.outputFile(signPath, signatureBuffer);
+
+      profile.applicationApproveDate = new Date();
 
       const profileData = formatDates({
         ...profile.toJSON(),
         signature: signPath,
       });
 
-      const buf = await generateDocx({
-        templatePath: './src/assets/ApplicationForms/Application-Form.docx',
-        data: profileData,
-      });
 
-      await fse.writeFile(`./temps/${id}/applicationForm/form.docx`, buf);
-
-      const s3Key = getCandidateS3Key(id, DocumentCategory.FORM, 'ApplicationForm.docx');
-      await uploadS3File(
-        s3Key,
-        buf,
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      );
-
-      await DocumentModel.findOneAndUpdate(
-        { candidate: id, category: DocumentCategory.FORM, documentName: 'ApplicationForm' },
-        {
-          candidate: id,
+      for (const form of applicationFormsList) {
+        const docxBuffer = await generateDocx({
+          templatePath: form.templatePath,
+          data: profileData,
+        });
+        const s3Key = getCandidateS3Key(id, DocumentCategory.FORM, form.s3FileName);
+        await uploadS3File(
           s3Key,
-          originalName: 'Application Form.docx',
-          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          category: DocumentCategory.FORM,
-          size: buf.length,
-        },
-        { upsert: true, new: true }
-      );
+          docxBuffer,
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        );
+        await DocumentModel.findOneAndUpdate(
+          { candidate: id, category: DocumentCategory.FORM, documentName: form.documentName },
+          {
+            candidate: id,
+            s3Key,
+            originalName: form.originalName,
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            category: DocumentCategory.FORM,
+            size: docxBuffer.length,
+          },
+          { upsert: true, new: true }
+        );
+        await fse.writeFile(`./temps/${id}/${form.s3FileName}`, docxBuffer);
+      }
 
       fse.rmSync(`./temps/${id}`, { recursive: true, force: true });
 
-      // profile.applicationStatus = 'APPLICATION_FORM_APPROVED';
-      // await profile.save();
+      profile.applicationStatus = 'APPLICATION_FORM_APPROVED';
+      await profile.save();
 
-      // await sendApplicationApprovedEmail(profile.email);
+      await sendApplicationApprovedEmail(profile.email);
       return profile;
     } catch (error) {
       console.log("Error in candidateService.approveApplicationForm :>> ", error);

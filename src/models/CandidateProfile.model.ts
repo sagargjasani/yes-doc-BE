@@ -82,6 +82,9 @@ export class CandidateProfile extends TimeStamps {
   @prop({ type: () => Date })
   public applicationDate?: Date;
 
+  @prop({ type: () => Date })
+  public applicationApproveDate?: Date;
+
   @prop({ type: () => String })
   public ref1Name?: string;
 
@@ -138,6 +141,62 @@ export class CandidateProfile extends TimeStamps {
 
   @prop({ type: () => String, enum: ['YES', 'NO'] })
   public hasOutstandingOffences?: string;
+
+  @prop({ type: () => String })
+  public clinicalScenario1_q1?: string;
+  @prop({ type: () => String })
+  public clinicalScenario1_q2?: string;
+  @prop({ type: () => String })
+  public clinicalScenario1_q3?: string;
+  @prop({ type: () => String })
+  public clinicalScenario1_q4?: string;
+
+  @prop({ type: () => String })
+  public clinicalScenario2_q1?: string;
+  @prop({ type: () => String })
+  public clinicalScenario2_q2?: string;
+  @prop({ type: () => String })
+  public clinicalScenario2_q3?: string;
+  @prop({ type: () => String })
+  public clinicalScenario2_q4?: string;
+
+  @prop({ type: () => String })
+  public clinicalScenario3_q1?: string;
+  @prop({ type: () => String })
+  public clinicalScenario3_q2?: string;
+  @prop({ type: () => String })
+  public clinicalScenario3_q3?: string;
+  @prop({ type: () => String })
+  public clinicalScenario3_q4?: string;
+
+  @prop({ type: () => String })
+  public clinicalScenario4_q1?: string;
+  @prop({ type: () => String })
+  public clinicalScenario4_q2?: string;
+  @prop({ type: () => String })
+  public clinicalScenario4_q3?: string;
+  @prop({ type: () => String })
+  public clinicalScenario4_q4?: string;
+
+  @prop({ type: () => String })
+  public clinicalScenario5_q1?: string;
+  @prop({ type: () => String })
+  public clinicalScenario5_q2?: string;
+  @prop({ type: () => String })
+  public clinicalScenario5_q3?: string;
+  @prop({ type: () => String })
+  public clinicalScenario5_q4?: string;
+
+  @prop({ type: () => String })
+  public clinicalScenario6_q1?: string;
+  @prop({ type: () => String })
+  public clinicalScenario6_q2?: string;
+  @prop({ type: () => String })
+  public clinicalScenario6_q3?: string;
+  @prop({ type: () => String })
+  public clinicalScenario6_q4?: string;
+
+
 
   @prop({ type: () => [Object], default: [] })
   public qualifications?: { courseName: string; dateCompleted: Date }[];
