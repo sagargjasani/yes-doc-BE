@@ -235,6 +235,108 @@ export class CandidateService {
     await sendApplicationChangesRequiredEmail(profile.email, reason);
     return profile;
   }
+
+  async searchCandidates(q: string, page = 1, limit = 10) {
+    const trimmedQ = q.trim();
+    if (!trimmedQ || trimmedQ.length < 3) {
+      return {
+        candidates: [],
+        pagination: {
+          total: 0,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: 0,
+          hasNextPage: false,
+        },
+      };
+    }
+
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Number(limit));
+    const skip = (pageNum - 1) * limitNum;
+
+    const regex = new RegExp(trimmedQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+    const filter = {
+      $or: [
+        { firstName: { $regex: regex } },
+        { lastName: { $regex: regex } },
+        { email: { $regex: regex } },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $concat: ['$firstName', ' ', '$lastName'] },
+              regex: trimmedQ,
+              options: 'i',
+            },
+          },
+        },
+      ],
+    };
+
+    const total = await CandidateProfileModel.countDocuments(filter);
+    const candidates = await CandidateProfileModel.find(filter)
+      .populate('consultant', 'firstName lastName email')
+      .select('firstName middleName lastName email mobile consultant applicationStatus location appliedFor createdAt')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    const totalPages = Math.ceil(total / limitNum);
+
+    return {
+      candidates,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+      },
+    };
+  }
+
+  async getCandidateById(id: string) {
+    const profile = await CandidateProfileModel.findById(id).populate('consultant', 'firstName lastName email mobile');
+    if (!profile) {
+      throw new AppError('Candidate profile not found', 404);
+    }
+    return profile;
+  }
+
+  async updateCandidateProfile(id: string, updateData: any) {
+    const profile = await CandidateProfileModel.findById(id);
+    if (!profile) {
+      throw new AppError('Candidate profile not found', 404);
+    }
+
+    delete updateData._id;
+    delete updateData.user;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+
+    Object.assign(profile, updateData);
+    await profile.save();
+
+    if (
+      updateData.firstName ||
+      updateData.lastName ||
+      updateData.email ||
+      updateData.mobile ||
+      updateData.middleName !== undefined
+    ) {
+      const userUpdate: Record<string, any> = {};
+      if (updateData.firstName) userUpdate.firstName = updateData.firstName;
+      if (updateData.lastName) userUpdate.lastName = updateData.lastName;
+      if (updateData.email) userUpdate.email = updateData.email;
+      if (updateData.mobile) userUpdate.mobile = updateData.mobile;
+      if (updateData.middleName !== undefined) userUpdate.middleName = updateData.middleName;
+
+      await UserModel.findByIdAndUpdate(profile.user, userUpdate);
+    }
+
+    return CandidateProfileModel.findById(id).populate('consultant', 'firstName lastName email mobile');
+  }
 }
 
 export const candidateService = new CandidateService();

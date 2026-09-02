@@ -103,3 +103,18 @@ export const getDocumentDownloadUrl = async (req: Request, res: Response, next: 
     next(error);
   }
 };
+
+export const getCandidateDocuments = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { candidateId } = req.params;
+
+    const documents = await DocumentModel.find({ candidate: candidateId }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      status: 'success',
+      data: documents,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

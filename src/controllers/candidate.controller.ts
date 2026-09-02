@@ -146,3 +146,51 @@ export const requestApplicationFormChanges = async (req: Request, res: Response,
   }
 };
 
+export const searchCandidates = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const q = (req.query.q as string) || '';
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 10;
+
+    const result = await candidateService.searchCandidates(q, page, limit);
+
+    res.status(200).json({
+      status: 'success',
+      data: result.candidates,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    logger.error('Error in searchCandidates controller', error);
+    next(error);
+  }
+};
+
+export const getCandidateById = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const candidate = await candidateService.getCandidateById(id);
+    res.status(200).json({
+      status: 'success',
+      data: candidate,
+    });
+  } catch (error) {
+    logger.error('Error in getCandidateById controller', error);
+    next(error);
+  }
+};
+
+export const updateCandidateProfile = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const updatedCandidate = await candidateService.updateCandidateProfile(id, req.body);
+    res.status(200).json({
+      status: 'success',
+      data: updatedCandidate,
+      message: 'Candidate profile updated successfully',
+    });
+  } catch (error) {
+    logger.error('Error in updateCandidateProfile controller', error);
+    next(error);
+  }
+};
+

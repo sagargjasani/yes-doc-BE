@@ -51,7 +51,7 @@ export function fixDocxImageTags(filePath: string): boolean {
       const parts = textContent.split(IMAGE_TAG_REGEX);
       let result = '';
 
-      parts.forEach((part) => {
+      parts.forEach((part: string) => {
         if (!part) return;
         if (SINGLE_IMAGE_TAG_REGEX.test(part)) {
           // Close current <w:t> and <w:r>, create isolated <w:r><w:t>tag</w:t></w:r>, start new <w:r><w:t>
