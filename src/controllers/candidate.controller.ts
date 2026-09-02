@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { candidateService } from '../services/candidate.service';
-import { AddCandidateDto } from '../validation/candidate.dto';
+import { AddCandidateDto, RequestChangesDto } from '../validation/candidate.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AppError } from '../utils/AppError';
@@ -80,3 +80,69 @@ export const submitApplicationForm = async (req: Request, res: Response, next: N
     next(error);
   }
 };
+
+export const getSubmittedApplicationForms = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const forms = await candidateService.getSubmittedApplicationForms();
+    res.status(200).json({
+      status: 'success',
+      data: forms,
+    });
+  } catch (error) {
+    logger.error('Error in getSubmittedApplicationForms controller', error);
+    next(error);
+  }
+};
+
+export const getApplicationFormById = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const form = await candidateService.getApplicationFormById(id);
+    res.status(200).json({
+      status: 'success',
+      data: form,
+    });
+  } catch (error) {
+    logger.error('Error in getApplicationFormById controller', error);
+    next(error);
+  }
+};
+
+export const approveApplicationForm = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const form = await candidateService.approveApplicationForm(id);
+    res.status(200).json({
+      status: 'success',
+      data: form,
+      message: 'Application form approved successfully'
+    });
+  } catch (error) {
+    logger.error('Error in approveApplicationForm controller', error);
+    next(error);
+  }
+};
+
+export const requestApplicationFormChanges = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const dto = plainToInstance(RequestChangesDto, req.body);
+    const errors = await validate(dto);
+    
+    if (errors.length > 0) {
+      const messages = errors.map((err) => Object.values(err.constraints || {})).flat();
+      throw new AppError(`Validation failed: ${messages.join(', ')}`, 400);
+    }
+
+    const form = await candidateService.requestApplicationFormChanges(id, dto.reason);
+    res.status(200).json({
+      status: 'success',
+      data: form,
+      message: 'Changes requested successfully'
+    });
+  } catch (error) {
+    logger.error('Error in requestApplicationFormChanges controller', error);
+    next(error);
+  }
+};
+

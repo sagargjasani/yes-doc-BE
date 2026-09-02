@@ -86,3 +86,85 @@ export const sendCreatePasswordEmail = async (email: string, resetToken: string)
     throw new Error('Could not send create password email');
   }
 };
+
+export const sendApplicationApprovedEmail = async (email: string) => {
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const uploadUrl = `${frontendUrl}/document-upload`;
+
+    const info = await transporter.sendMail({
+      from: '"Hey Doc Admin" <admin@heydoc.com>',
+      to: email,
+      subject: 'Application Form Approved - Proceed to Document Upload',
+      text: `Congratulations!\n\n
+        Your application form has been approved. Please proceed to upload your documents by clicking the link below:\n\n
+        ${uploadUrl}\n\n`,
+      html: `
+        <p>Congratulations!</p>
+        <p>Your application form has been approved. Please proceed to upload your documents by clicking the link below:</p>
+        <p><a href="${uploadUrl}">${uploadUrl}</a></p>
+      `,
+    });
+
+    logger.info(`Message sent: ${info.messageId}`);
+    logger.info(`Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+  } catch (error) {
+    logger.error('Error sending application approved email', error);
+    throw new Error('Could not send application approved email');
+  }
+};
+
+export const sendApplicationChangesRequiredEmail = async (email: string, reason: string) => {
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const applicationUrl = `${frontendUrl}/application-form`;
+
+    const info = await transporter.sendMail({
+      from: '"Hey Doc Admin" <admin@heydoc.com>',
+      to: email,
+      subject: 'Changes Required for Your Application Form',
+      text: `Hello,\n\n
+        We have reviewed your application form, and some changes are required before we can proceed.\n\n
+        Reason: ${reason}\n\n
+        Please review and update your application form by clicking the link below:\n\n
+        ${applicationUrl}\n\n`,
+      html: `
+        <p>Hello,</p>
+        <p>We have reviewed your application form, and some changes are required before we can proceed.</p>
+        <p><strong>Reason:</strong> ${reason}</p>
+        <p>Please review and update your application form by clicking the link below:</p>
+        <p><a href="${applicationUrl}">${applicationUrl}</a></p>
+      `,
+    });
+
+    logger.info(`Message sent: ${info.messageId}`);
+    logger.info(`Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+  } catch (error) {
+    logger.error('Error sending application changes required email', error);
+    throw new Error('Could not send application changes required email');
+  }
+};

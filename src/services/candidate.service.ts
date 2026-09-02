@@ -1,11 +1,17 @@
 import mongoose from 'mongoose';
+import dayjs from 'dayjs';
 import crypto from 'crypto';
 import UserModel, { Role } from '../models/User.model';
 import CandidateProfileModel from '../models/CandidateProfile.model';
 import { AddCandidateDto } from '../validation/candidate.dto';
 import { hashPassword } from '../utils/password';
 import { AppError } from '../utils/AppError';
-import { sendCreatePasswordEmail } from '../utils/mailer';
+import { sendCreatePasswordEmail, sendApplicationApprovedEmail, sendApplicationChangesRequiredEmail } from '../utils/mailer';
+import DocumentModel, { DocumentCategory } from '../models/Document.model';
+import fse from "fs-extra";
+import { downloadS3File, generatePresignedGetUrl, uploadS3File, getCandidateS3Key } from './s3.service';
+import { formatDates } from '../utils/formatters';
+import { generateDocx } from '../utils/docx';
 
 export class CandidateService {
   async addCandidate(data: AddCandidateDto) {
@@ -53,7 +59,7 @@ export class CandidateService {
       const hash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
       newUser.resetPasswordToken = hash;
-      newUser.resetPasswordExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      newUser.resetPasswordExpires = dayjs().add(24, 'hour').toDate(); // 24 hours
       await newUser.save({ session });
 
       await session.commitTransaction();
@@ -88,7 +94,7 @@ export class CandidateService {
     const hash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
     user.resetPasswordToken = hash;
-    user.resetPasswordExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    user.resetPasswordExpires = dayjs().add(24, 'hour').toDate(); // 24 hours
     await CandidateProfileModel.findOneAndUpdate({ user: userId }, { applicationStatus: "APPLICATION_FORM_SENT" });
     await user.save();
 
@@ -117,6 +123,113 @@ export class CandidateService {
     profile.applicationStatus = 'APPLICATION_FORM_SUBMITTED';
 
     await profile.save();
+    return profile;
+  }
+
+  async getSubmittedApplicationForms() {
+    const profiles = await CandidateProfileModel.find({ applicationStatus: 'APPLICATION_FORM_SUBMITTED' })
+      .populate('consultant', 'firstName lastName email')
+      .select('firstName middleName lastName consultant updatedAt applicationStatus');
+    return profiles;
+  }
+
+  async getApplicationFormById(id: string) {
+    const profile = await CandidateProfileModel.findById(id).populate('consultant', 'firstName lastName email');
+    if (!profile) {
+      throw new AppError('Candidate profile not found', 404);
+    }
+
+    const signatureDoc = await DocumentModel.findOne({
+      candidate: id,
+      documentName: 'signature'
+    });
+
+    let signatureUrl = null;
+    if (signatureDoc) {
+      signatureUrl = await generatePresignedGetUrl(signatureDoc.s3Key);
+    }
+
+    return {
+      ...profile.toJSON(),
+      signature: signatureUrl
+    };
+  }
+
+  async approveApplicationForm(id: string) {
+    try {
+      const profile = await CandidateProfileModel.findById(id);
+      if (!profile) {
+        throw new AppError('Candidate profile not found', 404);
+      }
+
+      const singatureKey = await DocumentModel.findOne({
+        candidate: id,
+        documentName: 'signature'
+      });
+      if (!singatureKey) {
+        throw new AppError('Signature not found', 404);
+      }
+
+      const signatureBuffer = await downloadS3File(singatureKey.s3Key);
+      const signPath = `./temps/${id}/applicationForm/sign.png`;
+
+      await fse.outputFile(signPath, signatureBuffer);
+
+      const profileData = formatDates({
+        ...profile.toJSON(),
+        signature: signPath,
+      });
+
+      const buf = await generateDocx({
+        templatePath: './src/assets/ApplicationForms/Application-Form.docx',
+        data: profileData,
+      });
+
+      await fse.writeFile(`./temps/${id}/applicationForm/form.docx`, buf);
+
+      const s3Key = getCandidateS3Key(id, DocumentCategory.FORM, 'ApplicationForm.docx');
+      await uploadS3File(
+        s3Key,
+        buf,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
+
+      await DocumentModel.findOneAndUpdate(
+        { candidate: id, category: DocumentCategory.FORM, documentName: 'ApplicationForm' },
+        {
+          candidate: id,
+          s3Key,
+          originalName: 'Application Form.docx',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          category: DocumentCategory.FORM,
+          size: buf.length,
+        },
+        { upsert: true, new: true }
+      );
+
+      fse.rmSync(`./temps/${id}`, { recursive: true, force: true });
+
+      // profile.applicationStatus = 'APPLICATION_FORM_APPROVED';
+      // await profile.save();
+
+      // await sendApplicationApprovedEmail(profile.email);
+      return profile;
+    } catch (error) {
+      console.log("Error in candidateService.approveApplicationForm :>> ", error);
+      throw error;
+    }
+  }
+
+  async requestApplicationFormChanges(id: string, reason: string) {
+    const profile = await CandidateProfileModel.findById(id);
+    if (!profile) {
+      throw new AppError('Candidate profile not found', 404);
+    }
+
+    profile.applicationStatus = 'APPLICATION_FORM_SENT';
+    await profile.save();
+
+    await sendApplicationChangesRequiredEmail(profile.email, reason);
     return profile;
   }
 }

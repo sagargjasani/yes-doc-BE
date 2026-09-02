@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { generatePresignedPostUrl, generatePresignedGetUrl } from '../services/s3.service';
+import { generatePresignedPostUrl, generatePresignedGetUrl, getCandidateS3Key } from '../services/s3.service';
 import DocumentModel from '../models/Document.model';
 import CandidateProfileModel from '../models/CandidateProfile.model';
 import { AppError } from '../utils/AppError';
@@ -29,7 +29,7 @@ export const getPresignedUploadUrl = async (req: Request, res: Response, next: N
     }
 
     const extension = filename.split('.').pop();
-    const s3Key = `candidates/${candidateProfile._id}/${category}/${documentName}.${extension}`;
+    const s3Key = getCandidateS3Key(candidateProfile._id.toString(), category, documentName, extension);
 
     const { url, fields } = await generatePresignedPostUrl(s3Key, contentType, maxSize);
 

@@ -2,6 +2,16 @@ import { prop, getModelForClass, Ref } from '@typegoose/typegoose';
 import { TimeStamps } from '@typegoose/typegoose/lib/defaultClasses';
 import { CandidateProfile } from './CandidateProfile.model';
 
+export enum DocumentCategory {
+  DOCUMENT = 'Document',
+  PROFILE = 'Profile',
+  FORM = 'Form',
+}
+
+export type TDocumentCategoryValue = `${DocumentCategory}`;
+
+export const documentCategoryValues: DocumentCategory[] = Object.values(DocumentCategory);
+
 export class Document extends TimeStamps {
   @prop({ ref: () => CandidateProfile, required: true })
   public candidate!: Ref<CandidateProfile>;
@@ -18,8 +28,8 @@ export class Document extends TimeStamps {
   @prop({ type: () => String, required: true })
   public mimeType!: string;
 
-  @prop({ type: () => String, enum: ['Document', 'Profile', 'Form'], required: true })
-  public category!: string;
+  @prop({ type: () => String, enum: DocumentCategory, required: true })
+  public category!: DocumentCategory;
 
   @prop({ type: () => Number, required: true })
   public size!: number;

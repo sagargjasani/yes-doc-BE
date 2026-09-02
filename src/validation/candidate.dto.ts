@@ -45,3 +45,8 @@ export class SendRegistrationLinkDto {
   userId!: string;
 }
 
+export class RequestChangesDto {
+  @IsString()
+  @IsNotEmpty()
+  reason!: string;
+}

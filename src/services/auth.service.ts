@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import dayjs from 'dayjs';
 import crypto from 'crypto';
 import UserModel, { Role, User } from '../models/User.model';
 import CandidateProfileModel from '../models/CandidateProfile.model';
@@ -103,7 +104,7 @@ export class AuthService {
 
     user.resetPasswordToken = hash;
     // Token valid for 1 hour
-    user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000);
+    user.resetPasswordExpires = dayjs().add(1, 'hour').toDate();
     await user.save();
 
     await sendPasswordResetEmail(user.email, resetToken);
@@ -114,7 +115,7 @@ export class AuthService {
 
     const user = await UserModel.findOne({
       resetPasswordToken: hash,
-      resetPasswordExpires: { $gt: new Date() },
+      resetPasswordExpires: { $gt: dayjs().toDate() },
     });
 
     if (!user) {
