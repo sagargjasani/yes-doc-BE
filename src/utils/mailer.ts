@@ -168,3 +168,69 @@ export const sendApplicationChangesRequiredEmail = async (email: string, reason:
     throw new Error('Could not send application changes required email');
   }
 };
+
+export const sendReferenceRequestEmail = async (
+  email: string,
+  refereeName: string,
+  candidateName: string,
+  token: string,
+  isResubmission = false,
+  rejectionReason?: string
+) => {
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const referenceUrl = `${frontendUrl}/reference-form/${token}`;
+
+    const subject = isResubmission
+      ? `Reference Form Update Required for ${candidateName}`
+      : `Reference Request for ${candidateName}`;
+
+    const resubmissionText = isResubmission && rejectionReason
+      ? `\n\nYour previous reference submission required updates for the following reason:\n"${rejectionReason}"\n\nPlease review and update your responses.`
+      : '';
+
+    const resubmissionHtml = isResubmission && rejectionReason
+      ? `<p style="color: #c53030; background: #fff5f5; padding: 12px; border-radius: 6px;"><strong>Updates Required:</strong> ${rejectionReason}</p>`
+      : '';
+
+    const textContent = `Hello ${refereeName},\n\nYou have been requested to provide a professional reference for ${candidateName}.${resubmissionText}\n\nPlease click on the link below to complete the reference form:\n${referenceUrl}\n\nNote: This link will be active for 7 days.\n\nThank you!`;
+
+    const htmlContent = `
+      <p>Hello <strong>${refereeName}</strong>,</p>
+      <p>You have been listed as a professional reference for <strong>${candidateName}</strong>.</p>
+      ${resubmissionHtml}
+      <p>Please click on the link below to fill out the quick reference form for this candidate:</p>
+      <p><a href="${referenceUrl}" style="background-color: #2b6cb0; color: white; padding: 10px 18px; text-decoration: none; border-radius: 4px; display: inline-block;">Complete Reference Form</a></p>
+      <p>Or paste this link into your browser: <br /><a href="${referenceUrl}">${referenceUrl}</a></p>
+      <p><em>Note: This link is active for 7 days.</em></p>
+      <p>Thank you!</p>
+    `;
+
+    const info = await transporter.sendMail({
+      from: '"Hey Doc Compliance" <compliance@heydoc.com>',
+      to: email,
+      subject,
+      text: textContent,
+      html: htmlContent,
+    });
+
+    logger.info(`Reference email sent: ${info.messageId}`);
+    logger.info(`Reference email Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+  } catch (error) {
+    logger.error('Error sending reference request email', error);
+    throw new Error('Could not send reference request email');
+  }
+};
+

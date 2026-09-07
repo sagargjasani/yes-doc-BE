@@ -14,6 +14,7 @@ import commonAttributesRoutes from './routes/commonAttributes.routes';
 import userRoutes from './routes/user.routes';
 import candidateRoutes from './routes/candidate.routes';
 import documentRoutes from './routes/document.routes';
+import referenceFormRoutes from './routes/referenceForm.routes';
 
 const app = express();
 
@@ -64,6 +65,7 @@ app.use('/api/common-attributes', commonAttributesRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/reference-forms', referenceFormRoutes);
 
 // Health Check Route
 app.get('/health', (req: Request, res: Response) => {

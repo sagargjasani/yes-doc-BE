@@ -2,6 +2,8 @@ import fse from 'fs-extra';
 import PizZip from 'pizzip';
 import ImageModule from 'docxtemplater-image-module-free';
 import Docxtemplater from 'docxtemplater';
+import expressionParser from 'docxtemplater/expressions.js';
+import dayjs from 'dayjs';
 import { fixDocPrCorruptionModule } from './fixDocPrCorruptionModule';
 
 export interface DocxImageOptions {
@@ -16,13 +18,14 @@ export interface GenerateDocxOptions {
   data: Record<string, any>;
   imageOptions?: DocxImageOptions;
   nullGetter?: (part: any) => string;
+  parserOptions?: Parameters<typeof expressionParser.configure>[0];
 }
 
 /**
  * Renders a docx template with provided data payload and optional image configurations.
  */
 export async function generateDocx(options: GenerateDocxOptions): Promise<Buffer> {
-  const { templatePath, data, imageOptions, nullGetter } = options;
+  const { templatePath, data, imageOptions, nullGetter, parserOptions } = options;
 
   const templateContent = await fse.readFile(templatePath);
   const zip = new PizZip(templateContent);
@@ -51,8 +54,22 @@ export async function generateDocx(options: GenerateDocxOptions): Promise<Buffer
     zip: zip,
   });
 
+  const parser = expressionParser.configure({
+    ...parserOptions,
+    filters: {
+      formatDate: (input: any, format = 'DD/MM/YYYY') => {
+        if (!input) return '';
+        return dayjs(input).format(format);
+      },
+      upper: (input: any) => (input ? String(input).toUpperCase() : ''),
+      lower: (input: any) => (input ? String(input).toLowerCase() : ''),
+      ...parserOptions?.filters,
+    },
+  });
+
   const doc = new Docxtemplater(zip, {
     modules: [imageModule, fixDocPrCorruptionModule],
+    parser,
     nullGetter(part: any) {
       if (nullGetter) {
         return nullGetter(part);
@@ -66,3 +83,5 @@ export async function generateDocx(options: GenerateDocxOptions): Promise<Buffer
 
   return doc.toBuffer();
 }
+
+export { expressionParser };

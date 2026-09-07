@@ -204,6 +204,9 @@ export class CandidateProfile extends TimeStamps {
   @prop({ type: () => String, enum: ['INITIATED', 'APPLICATION_FORM_SENT', 'APPLICATION_FORM_SUBMITTED', 'APPLICATION_FORM_APPROVED'], default: 'INITIATED' })
   public applicationStatus?: string;
 
+  @prop({ type: () => String, enum: ['NOT_SENT', 'SENT', 'SUBMITTED', 'APPROVED'], default: 'NOT_SENT' })
+  public referenceStatus?: string;
+
   public get fullName(): string {
     return [this.firstName, this.middleName, this.lastName].filter(Boolean).join(' ');
   }
