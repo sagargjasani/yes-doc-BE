@@ -74,3 +74,37 @@ export class ResetPasswordDto {
   @MinLength(6, { message: 'Password must be at least 6 characters long' })
   password!: string;
 }
+
+export class UpdateProfileDto {
+  @IsString()
+  @IsOptional()
+  firstName?: string;
+
+  @IsString()
+  @IsOptional()
+  middleName?: string;
+
+  @IsString()
+  @IsOptional()
+  lastName?: string;
+
+  @IsEmail()
+  @IsOptional()
+  @Transform(({ value }) => value?.toLowerCase().trim())
+  email?: string;
+
+  @IsString()
+  @IsOptional()
+  mobile?: string;
+}
+
+export class ChangePasswordDto {
+  @IsString()
+  @IsNotEmpty()
+  currentPassword!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(6, { message: 'New password must be at least 6 characters long' })
+  newPassword!: string;
+}

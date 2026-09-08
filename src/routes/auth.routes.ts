@@ -1,14 +1,32 @@
 import { Router } from 'express';
-import { register, login, logout, getMe, forgotPassword, resetPassword } from '../controllers/auth.controller';
+import {
+  register,
+  login,
+  logout,
+  getMe,
+  forgotPassword,
+  resetPassword,
+  updateProfile,
+  changePassword,
+} from '../controllers/auth.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
 import { validateDto } from '../middlewares/validate.middleware';
-import { RegisterDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from '../validation/auth.dto';
+import {
+  RegisterDto,
+  LoginDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  UpdateProfileDto,
+  ChangePasswordDto,
+} from '../validation/auth.dto';
 
 const router = Router();
 
 router.post('/login', validateDto(LoginDto), login);
 router.post('/logout', requireAuth, logout);
 router.get('/me', requireAuth, getMe);
+router.patch('/profile', requireAuth, validateDto(UpdateProfileDto), updateProfile);
+router.post('/change-password', requireAuth, validateDto(ChangePasswordDto), changePassword);
 
 router.post('/forgot-password', validateDto(ForgotPasswordDto), forgotPassword);
 router.post('/reset-password', validateDto(ResetPasswordDto), resetPassword);

@@ -15,6 +15,7 @@ import userRoutes from './routes/user.routes';
 import candidateRoutes from './routes/candidate.routes';
 import documentRoutes from './routes/document.routes';
 import referenceFormRoutes from './routes/referenceForm.routes';
+import notificationRoutes from './routes/notification.routes';
 
 const app = express();
 
@@ -45,19 +46,18 @@ app.use(
 );
 
 // Session Middleware with MongoDB
-app.use(
-  session({
-    store: MongoStore.create({ mongoUrl: env.MONGO_URI }),
-    secret: env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: env.NODE_ENV === 'production',
-      httpOnly: true,
-      maxAge: 1000 * 60 * 60 * 24, // 1 day
-    },
-  })
-);
+export const sessionMiddleware = session({
+  store: MongoStore.create({ mongoUrl: env.MONGO_URI }),
+  secret: env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 1000 * 60 * 60 * 24, // 1 day
+  },
+});
+app.use(sessionMiddleware);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -66,6 +66,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/reference-forms', referenceFormRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health Check Route
 app.get('/health', (req: Request, res: Response) => {

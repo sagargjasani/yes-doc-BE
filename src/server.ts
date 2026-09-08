@@ -1,7 +1,9 @@
+import http from 'http';
 import mongoose from 'mongoose';
-import app from './app';
+import app, { sessionMiddleware } from './app';
 import { env } from './config/env';
 import logger from './utils/logger';
+import { initSocket } from './services/socket.service';
 
 // Handling Uncaught Exceptions globally
 process.on('uncaughtException', (err: Error) => {
@@ -10,7 +12,7 @@ process.on('uncaughtException', (err: Error) => {
   process.exit(1);
 });
 
-let server: any;
+let server: http.Server;
 
 const connectDB = async () => {
   try {
@@ -25,8 +27,13 @@ const connectDB = async () => {
 const startServer = async () => {
   await connectDB();
 
-  server = app.listen(env.PORT, () => {
-    logger.info(`App running on port ${env.PORT} in ${env.NODE_ENV} mode...`);
+  server = http.createServer(app);
+
+  // Initialize Socket.IO
+  initSocket(server, sessionMiddleware);
+
+  server.listen(env.PORT, () => {
+    logger.info(`App running on port ${env.PORT} in ${env.NODE_ENV} mode with Socket.IO enabled...`);
   });
 };
 

@@ -3,7 +3,14 @@ import dayjs from 'dayjs';
 import crypto from 'crypto';
 import UserModel, { Role, User } from '../models/User.model';
 import CandidateProfileModel from '../models/CandidateProfile.model';
-import { RegisterDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from '../validation/auth.dto';
+import {
+  RegisterDto,
+  LoginDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  UpdateProfileDto,
+  ChangePasswordDto,
+} from '../validation/auth.dto';
 import { hashPassword, comparePassword } from '../utils/password';
 import { AppError } from '../utils/AppError';
 import { sendPasswordResetEmail } from '../utils/mailer';
@@ -134,6 +141,56 @@ export class AuthService {
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
+  }
+
+  async updateProfile(userId: string, data: UpdateProfileDto) {
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    if (data.email && data.email !== user.email) {
+      const existingEmail = await UserModel.findOne({ email: data.email, _id: { $ne: userId } });
+      if (existingEmail) {
+        throw new AppError('A user with this email already exists', 400);
+      }
+      user.email = data.email;
+    }
+
+    if (data.mobile && data.mobile !== user.mobile) {
+      const existingMobile = await UserModel.findOne({ mobile: data.mobile, _id: { $ne: userId } });
+      if (existingMobile) {
+        throw new AppError('A user with this mobile number already exists', 400);
+      }
+      user.mobile = data.mobile;
+    }
+
+    if (data.firstName !== undefined) user.firstName = data.firstName;
+    if (data.middleName !== undefined) user.middleName = data.middleName;
+    if (data.lastName !== undefined) user.lastName = data.lastName;
+
+    await user.save();
+
+    const userResponse = user.toObject();
+    delete (userResponse as any).password;
+    return userResponse;
+  }
+
+  async changePassword(userId: string, data: ChangePasswordDto) {
+    const user = await UserModel.findById(userId).select('+password');
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    const isMatch = await comparePassword(data.currentPassword, user.password);
+    if (!isMatch) {
+      throw new AppError('Current password is incorrect', 400);
+    }
+
+    user.password = await hashPassword(data.newPassword);
+    await user.save();
+
+    return { message: 'Password changed successfully' };
   }
 }
 
