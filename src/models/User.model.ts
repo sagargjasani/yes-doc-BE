@@ -36,6 +36,9 @@ export class User extends TimeStamps {
 
   @prop({ required: true, enum: Role, type: String })
   public role!: Role;
+
+  @prop({ type: () => Boolean, default: true })
+  public isActive!: boolean;
 }
 
 const UserModel = getModelForClass(User, { schemaOptions: { timestamps: true } });

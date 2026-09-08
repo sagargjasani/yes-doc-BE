@@ -13,6 +13,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       return next(new AppError('The user belonging to this session no longer exists.', 401));
     }
 
+    if (currentUser.isActive === false) {
+      return next(new AppError('Your account has been deactivated. Please contact an administrator.', 403));
+    }
+
     req.user = currentUser;
     next();
   } catch (error) {

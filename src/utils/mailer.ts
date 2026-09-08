@@ -44,7 +44,7 @@ export const sendPasswordResetEmail = async (email: string, resetToken: string) 
   }
 };
 
-export const sendCreatePasswordEmail = async (email: string, resetToken: string) => {
+export const sendCreatePasswordEmail = async (email: string, resetToken: string, role?: string) => {
   try {
     // For local development, we use ethereal fake SMTP service
     const testAccount = await nodemailer.createTestAccount();
@@ -62,17 +62,24 @@ export const sendCreatePasswordEmail = async (email: string, resetToken: string)
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const resetUrl = `${frontendUrl}/create-password/${resetToken}`;
 
+    const isStaff = role && role.toLowerCase() !== 'candidate';
+    const roleTitle = role ? role.charAt(0).toUpperCase() + role.slice(1) : '';
+    const subject = isStaff
+      ? `Welcome to Hey Doc! Please set your password (${roleTitle} Account)`
+      : 'Welcome to Hey Doc! Please set your password';
+    const entityText = isStaff ? `Your ${roleTitle} account` : 'Your candidate profile';
+
     const info = await transporter.sendMail({
       from: '"Hey Doc Admin" <admin@heydoc.com>',
       to: email,
-      subject: 'Welcome to Hey Doc! Please set your password',
+      subject,
       text: `Welcome to Hey Doc!\n\n
-        Your candidate profile has been created successfully. Please click on the following link, or paste this into your browser to set up your password and access your account:\n\n
+        ${entityText} has been created successfully. Please click on the following link, or paste this into your browser to set up your password and access your account:\n\n
         ${resetUrl}\n\n
         This link is valid for 24 hours.\n`,
       html: `
         <p>Welcome to Hey Doc!</p>
-        <p>Your candidate profile has been created successfully. Please click on the following link, or paste this into your browser to set up your password and access your account:</p>
+        <p>${entityText} has been created successfully. Please click on the following link, or paste this into your browser to set up your password and access your account:</p>
         <p><a href="${resetUrl}">${resetUrl}</a></p>
         <p>This link is valid for 24 hours.</p>
       `,

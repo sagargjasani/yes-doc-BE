@@ -86,6 +86,10 @@ export class AuthService {
       throw new AppError('Invalid email or password', 401);
     }
 
+    if (user.isActive === false) {
+      throw new AppError('Your account has been deactivated. Please contact an administrator.', 403);
+    }
+
     const userResponse = user.toObject();
     delete (userResponse as any).password;
 
@@ -94,8 +98,8 @@ export class AuthService {
 
   async forgotPassword(data: ForgotPasswordDto) {
     const user = await UserModel.findOne({ email: data.email });
-    if (!user) {
-      // Do not reveal if user exists or not
+    if (!user || user.isActive === false) {
+      // Do not reveal if user exists or is inactive
       return;
     }
 
@@ -120,6 +124,10 @@ export class AuthService {
 
     if (!user) {
       throw new AppError('Token is invalid or has expired', 400);
+    }
+
+    if (user.isActive === false) {
+      throw new AppError('Your account has been deactivated. Please contact an administrator.', 403);
     }
 
     user.password = await hashPassword(data.password);
