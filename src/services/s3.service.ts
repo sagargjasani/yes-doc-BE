@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, GetObjectCommandOutput, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, GetObjectCommandOutput, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'node:stream';
@@ -59,6 +59,18 @@ export const generatePresignedGetUrl = async (key: string) => {
   // URL expires in 15 minutes (900 seconds)
   const url = await getSignedUrl(s3Client, command, { expiresIn: 900 });
   return url;
+};
+
+export const deleteS3File = async (key: string) => {
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    });
+    return await s3Client.send(command);
+  } catch (error) {
+    console.error('Failed to delete S3 file:', key, error);
+  }
 };
 
 export const downloadS3File = (key: string): Promise<Buffer> => {

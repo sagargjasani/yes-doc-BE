@@ -69,7 +69,7 @@ export const resendInvitation = async (req: Request, res: Response, next: NextFu
 
 export const getConsultants = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const consultants = await UserModel.find({ role: Role.CONSULTANT });
+    const consultants = await UserModel.find({ role: Role.CONSULTANT, isActive: { $ne: false } });
     const consultantsMap = consultants.map((consultant) => ({
       value: consultant._id.toString(),
       label: `${consultant.firstName} ${consultant.lastName}`,

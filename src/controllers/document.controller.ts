@@ -1,19 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { generatePresignedPostUrl, generatePresignedGetUrl, getCandidateS3Key } from '../services/s3.service';
+import { generatePresignedPostUrl, generatePresignedGetUrl, getCandidateS3Key, deleteS3File } from '../services/s3.service';
 import DocumentModel from '../models/Document.model';
 import CandidateProfileModel from '../models/CandidateProfile.model';
 import { AppError } from '../utils/AppError';
 
 export const getPresignedUploadUrl = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { filename, contentType, category, size, documentName } = req.body;
+    const { filename, contentType, category, size, documentName, candidateId, documentId } = req.body;
 
     if (!filename || !contentType || !category || !size || !documentName) {
       return next(new AppError('Please provide filename, contentType, category, size, and documentName', 400));
     }
 
-    const candidateProfile = await CandidateProfileModel.findOne({ user: req.user?._id });
+    let candidateProfile;
+    if (candidateId) {
+      candidateProfile = await CandidateProfileModel.findById(candidateId);
+    } else if (documentId) {
+      const existingDoc = await DocumentModel.findById(documentId);
+      if (existingDoc) {
+        candidateProfile = await CandidateProfileModel.findById(existingDoc.candidate);
+      }
+    } else {
+      candidateProfile = await CandidateProfileModel.findOne({ user: req.user?._id });
+    }
+
     if (!candidateProfile) {
       return next(new AppError('Candidate profile not found', 404));
     }
@@ -48,23 +59,72 @@ export const getPresignedUploadUrl = async (req: Request, res: Response, next: N
 
 export const confirmUpload = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { s3Key, originalName, mimeType, category, size, documentName } = req.body;
+    const { s3Key, originalName, mimeType, category, size, documentName, candidateId, documentId } = req.body;
 
-    const candidateProfile = await CandidateProfileModel.findOne({ user: req.user?._id });
+    let candidateProfile;
+    if (candidateId) {
+      candidateProfile = await CandidateProfileModel.findById(candidateId);
+    } else if (documentId) {
+      const existingDoc = await DocumentModel.findById(documentId);
+      if (existingDoc) {
+        candidateProfile = await CandidateProfileModel.findById(existingDoc.candidate);
+      }
+    } else {
+      candidateProfile = await CandidateProfileModel.findOne({ user: req.user?._id });
+    }
+
     if (!candidateProfile) {
       return next(new AppError('Candidate profile not found', 404));
     }
 
-    const document = await DocumentModel.findOneAndUpdate(
-      { candidate: candidateProfile._id, category, documentName }, // Find by candidate, category, and documentName
-      {
-        s3Key,
-        originalName,
-        mimeType,
-        size,
-      },
-      { new: true, upsert: true } // Create if doesn't exist, update if it does
-    );
+    let document;
+    if (documentId) {
+      const existingDoc = await DocumentModel.findById(documentId);
+      if (existingDoc && existingDoc.s3Key && existingDoc.s3Key !== s3Key) {
+        // Delete previous S3 file if the s3Key changed
+        await deleteS3File(existingDoc.s3Key);
+      }
+
+      document = await DocumentModel.findByIdAndUpdate(
+        documentId,
+        {
+          candidate: candidateProfile._id,
+          s3Key,
+          originalName,
+          mimeType,
+          category,
+          size,
+          documentName,
+        },
+        { new: true }
+      );
+    }
+
+    if (!document) {
+      // Find existing by candidate, category, and documentName
+      const existingDoc = await DocumentModel.findOne({
+        candidate: candidateProfile._id,
+        category,
+        documentName,
+      });
+
+      if (existingDoc && existingDoc.s3Key && existingDoc.s3Key !== s3Key) {
+        await deleteS3File(existingDoc.s3Key);
+      }
+
+      document = await DocumentModel.findOneAndUpdate(
+        { candidate: candidateProfile._id, category, documentName },
+        {
+          s3Key,
+          originalName,
+          mimeType,
+          category,
+          size,
+          documentName,
+        },
+        { new: true, upsert: true }
+      );
+    }
 
     res.status(201).json({
       status: 'success',
