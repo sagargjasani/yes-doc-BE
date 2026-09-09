@@ -73,6 +73,9 @@ export class CandidateProfile extends TimeStamps {
   @prop({ type: () => String })
   public nokMobile?: string;
 
+  @prop({ type: () => String, trim: true, lowercase: true })
+  public nokEmail?: string;
+
   @prop({ type: () => String, enum: ['YES', 'NO'] })
   public hasPreventAssignments?: string;
 
