@@ -145,6 +145,43 @@ export class CandidateProfile extends TimeStamps {
   @prop({ type: () => String, enum: ['YES', 'NO'] })
   public hasOutstandingOffences?: string;
 
+  // Night Worker Health Assessment
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_diabetes?: string;
+
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_heartCirculatory?: string;
+
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_stomachIntestinal?: string;
+
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_difficultySleeping?: string;
+
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_chestDisorders?: string;
+
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_strictMedication?: string;
+
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_mealTiming?: string;
+
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_mentalHealth?: string;
+
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_otherConditions?: string;
+
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_expectantMother?: string;
+
+  @prop({ type: () => String, enum: ['YES', 'NO'] })
+  public health_nightWorkIllHealth?: string;
+
+  @prop({ type: () => String })
+  public health_conditionDetails?: string;
+
   @prop({ type: () => String })
   public clinicalScenario1_q1?: string;
   @prop({ type: () => String })
