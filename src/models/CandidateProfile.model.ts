@@ -250,6 +250,43 @@ export class CandidateProfile extends TimeStamps {
   public get fullName(): string {
     return [this.firstName, this.middleName, this.lastName].filter(Boolean).join(' ');
   }
+
+  // compliance fields
+  @prop({ type: () => String, trim: true })
+  public addressLine1?: string;
+
+  @prop({ type: () => String, trim: true })
+  public addressLine2?: string;
+
+  @prop({ type: () => String, trim: true })
+  public townOrCity?: string;
+
+  @prop({ type: () => String, trim: true })
+  public county?: string;
+
+  @prop({ type: () => String, trim: true })
+  public postcode?: string;
+
+  public get fullAddress(): string {
+    return [this.addressLine1, this.addressLine2, this.townOrCity, this.county, this.postcode]
+      .filter((part): part is string => Boolean(part && part.trim()))
+      .join(', ');
+  }
+
+  @prop({ type: () => Date })
+  public dateOfBirth?: Date;
+
+  @prop({ type: () => String, trim: true })
+  public dbsNumber?: string;
+
+  @prop({ type: () => [Object], default: [] })
+  public experiences?: {
+    organization: string;
+    positionHeld: string;
+    startDate?: Date;
+    endDate?: Date;
+    location?: string;
+  }[];
 }
 
 const CandidateProfileModel = getModelForClass(CandidateProfile, {
