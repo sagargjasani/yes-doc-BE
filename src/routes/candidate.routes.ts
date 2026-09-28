@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { requireAuth } from '../middlewares/auth.middleware';
+import { requireAuth, requireRole } from '../middlewares/auth.middleware';
+import { Role } from '../models/User.model';
 import {
   addCandidate,
   sendRegistrationLink,
@@ -17,6 +18,7 @@ import {
   getCandidateTrainings,
   updateCandidateTrainings,
 } from '../controllers/candidateTraining.controller';
+import { generateComplianceForms } from '../controllers/compliance.controller';
 import { validateDto } from '../middlewares/validate.middleware';
 import { UpdateCandidateTrainingsDto } from '../validation/candidateTraining.dto';
 
@@ -35,6 +37,14 @@ router.put('/application-form/:id/changes-required', requireAuth, requestApplica
 
 router.get('/:id/trainings', requireAuth, getCandidateTrainings);
 router.put('/:id/trainings', requireAuth, validateDto(UpdateCandidateTrainingsDto), updateCandidateTrainings);
+
+// Generates the staff profile documents for a candidate. Staff users only.
+router.post(
+  '/:id/compliance',
+  requireAuth,
+  requireRole(Role.ADMIN, Role.CONSULTANT, Role.COMPLIANCE),
+  generateComplianceForms
+);
 
 router.get('/:id', requireAuth, getCandidateById);
 router.put('/:id', requireAuth, updateCandidateProfile);

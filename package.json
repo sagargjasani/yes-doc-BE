@@ -8,7 +8,8 @@
     "build": "tsc",
     "seed:admin": "tsx seedAdmin.ts",
     "seed:common": "tsx seedCommonAttributes.ts",
-    "fix:docx-tags": "tsx src/assets/fixDocxImageTags.ts"
+    "fix:docx-tags": "tsx src/assets/fixDocxImageTags.ts",
+    "fix:profile-tags": "tsx src/assets/fixProfileFilterTags.ts"
   },
   "keywords": [],
   "author": "",
