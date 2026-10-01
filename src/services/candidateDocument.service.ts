@@ -17,7 +17,6 @@ export const isRequiredDocumentUpload = (role: Role, category: string) =>
 
 export interface ConfirmedUpload {
   s3Key: string;
-  originalName: string;
   mimeType: string;
   size: number;
   documentName: string;
@@ -45,7 +44,19 @@ const assertDocumentsEditable = (profile: CandidateProfile) => {
 };
 
 // Candidate Documents must be previewable by Reviewers (PDF inline, images as images).
-const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+// The extension comes from the file type, not the Candidate's file name.
+const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+};
+
+/** Where an allowed Upload will be stored, and the name it is shown and downloaded under. */
+export interface UploadTarget {
+  profile: DocumentType<CandidateProfile>;
+  originalName: string;
+  s3Key: string;
+}
 
 export interface CandidateDocumentSummary {
   _id: string;
@@ -197,19 +208,24 @@ export class CandidateDocumentService {
     return this.buildCandidateChecklist(profile);
   }
 
-  /** The Candidate's own profile, once every Upload rule allows this file for this Required Document. */
-  async prepareUpload(userId: string, documentName: string, mimeType: string) {
+  /**
+   * Checks every Upload rule for this file and Required Document, and decides where it is stored:
+   * originalName is the Required Document's label plus the file type's extension (e.g. "Proof of Address 1.pdf"),
+   * and the s3Key ends with that originalName.
+   */
+  async prepareUpload(userId: string, documentName: string, mimeType: string): Promise<UploadTarget> {
     const profile = await this.getApprovedProfile(userId);
     assertDocumentsEditable(profile);
 
-    if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+    const extension = EXTENSION_BY_MIME_TYPE[mimeType];
+    if (!extension) {
       throw new AppError('Only PDF, JPG and PNG files are accepted', 400);
     }
     if (!profile.visaType) {
       throw new AppError('Choose your visa type before uploading documents', 400);
     }
-    const isApplicable = getApplicableRequiredDocuments(profile.visaType).some((doc) => doc.key === documentName);
-    if (!isApplicable) {
+    const requiredDocument = getApplicableRequiredDocuments(profile.visaType).find((doc) => doc.key === documentName);
+    if (!requiredDocument) {
       throw new AppError('This document is not required for your visa type', 400);
     }
 
@@ -222,7 +238,12 @@ export class CandidateDocumentService {
       throw new AppError('This document has been approved and cannot be replaced', 409);
     }
 
-    return profile;
+    const originalName = `${requiredDocument.label}.${extension}`;
+    return {
+      profile,
+      originalName,
+      s3Key: getCandidateS3Key(profile._id.toString(), DocumentCategory.DOCUMENT, originalName),
+    };
   }
 
   /**
@@ -230,16 +251,15 @@ export class CandidateDocumentService {
    * (deleting the previous file) and puts it back to Pending for review.
    */
   async confirmUpload(userId: string, upload: ConfirmedUpload) {
-    const { s3Key, originalName, mimeType, size, documentName } = upload;
-    const profile = await this.prepareUpload(userId, documentName, mimeType);
+    const { s3Key, mimeType, size, documentName } = upload;
+    const target = await this.prepareUpload(userId, documentName, mimeType);
 
-    // The key must be the one presign issued for this Candidate and Required Document
-    const expectedKeyPrefix = `${getCandidateS3Key(profile._id.toString(), DocumentCategory.DOCUMENT, documentName)}.`;
-    if (typeof s3Key !== 'string' || !s3Key.startsWith(expectedKeyPrefix)) {
+    // Must be exactly the key presign issued for this Candidate, Required Document and file type
+    if (s3Key !== target.s3Key) {
       throw new AppError('Uploaded file does not match this document', 400);
     }
 
-    const filter = { candidate: profile._id, category: DocumentCategory.DOCUMENT, documentName };
+    const filter = { candidate: target.profile._id, category: DocumentCategory.DOCUMENT, documentName };
     const existing = await DocumentModel.findOne(filter);
     if (existing && existing.s3Key !== s3Key) {
       await deleteS3File(existing.s3Key);
@@ -249,7 +269,7 @@ export class CandidateDocumentService {
       filter,
       {
         s3Key,
-        originalName,
+        originalName: target.originalName,
         mimeType,
         size,
         reviewStatus: ReviewStatus.PENDING,

@@ -6,10 +6,10 @@ import { APPROVED, candidateWithVisaType, checklistItem, upload } from './helper
 
 describe('Candidate upload per Required Document', () => {
   it.each([
-    ['application/pdf', 'passport.pdf'],
-    ['image/jpeg', 'passport.jpg'],
-    ['image/png', 'passport.png'],
-  ])('accepts %s and shows it as Uploaded and Pending', async (mimeType, filename) => {
+    ['application/pdf', 'my scan.PDF', 'Passport.pdf'],
+    ['image/jpeg', 'IMG_2041.jpeg', 'Passport.jpg'],
+    ['image/png', '5ca39c67-ecef.png', 'Passport.png'],
+  ])('accepts %s and shows it as Uploaded and Pending', async (mimeType, filename, expectedName) => {
     const { agent } = await candidateWithVisaType();
 
     const { presigned, confirm } = await upload(agent, 'Passport', { mimeType, filename });
@@ -17,11 +17,41 @@ describe('Candidate upload per Required Document', () => {
     expect(presigned.status).toBe(200);
     expect(confirm?.status).toBe(201);
     expect((await checklistItem(agent, 'Passport'))?.document).toMatchObject({
-      originalName: filename,
+      originalName: expectedName,
       mimeType,
       reviewStatus: 'PENDING',
       rejectionReason: null,
     });
+  });
+
+  it('names the file after its Required Document and stores it under that name in S3', async () => {
+    const { agent, profile } = await candidateWithVisaType();
+
+    const { presigned } = await upload(agent, 'ProofOfAddress1', { mimeType: 'image/jpeg', filename: 'bill.jpeg' });
+
+    const expectedKey = `candidates/${profile!._id}/Document/Proof of Address 1.jpg`;
+    expect(presigned.body.data.s3Key).toBe(expectedKey);
+    const saved = await DocumentModel.findOne({ documentName: 'ProofOfAddress1' });
+    expect(saved).toMatchObject({
+      documentName: 'ProofOfAddress1',
+      originalName: 'Proof of Address 1.jpg',
+      s3Key: expectedKey,
+      category: DocumentCategory.DOCUMENT,
+    });
+  });
+
+  it('ignores a client-supplied originalName', async () => {
+    const { agent } = await candidateWithVisaType();
+    const presigned = await agent.post('/api/documents/presigned-upload').send({
+      filename: 'x.pdf', contentType: 'application/pdf', category: DocumentCategory.DOCUMENT, size: 1000, documentName: 'CV',
+    });
+
+    await agent.post('/api/documents/confirm-upload').send({
+      s3Key: presigned.body.data.s3Key, originalName: '../../evil.exe', mimeType: 'application/pdf',
+      category: DocumentCategory.DOCUMENT, size: 1000, documentName: 'CV',
+    });
+
+    expect((await checklistItem(agent, 'CV'))?.document?.originalName).toBe('CV.pdf');
   });
 
   it.each([
@@ -82,7 +112,7 @@ describe('Candidate upload per Required Document', () => {
     await upload(agent, 'Passport', { mimeType: 'image/png', filename: 'new.png' });
 
     expect(await DocumentModel.countDocuments({ documentName: 'Passport' })).toBe(1);
-    expect((await checklistItem(agent, 'Passport'))?.document?.originalName).toBe('new.png');
+    expect((await checklistItem(agent, 'Passport'))?.document?.originalName).toBe('Passport.png');
     expect(deleteS3File).toHaveBeenCalledWith(oldKey);
   });
 
@@ -97,7 +127,7 @@ describe('Candidate upload per Required Document', () => {
     await upload(agent, 'Passport', { filename: 'clear-scan.pdf' });
 
     expect((await checklistItem(agent, 'Passport'))?.document).toMatchObject({
-      originalName: 'clear-scan.pdf',
+      originalName: 'Passport.pdf',
       reviewStatus: 'PENDING',
       rejectionReason: null,
     });

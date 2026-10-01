@@ -15,8 +15,12 @@ export const getPresignedUploadUrl = async (req: Request, res: Response, next: N
     }
 
     let candidateProfile;
+    let s3Key: string | undefined;
     if (req.user && isRequiredDocumentUpload(req.user.role, category)) {
-      candidateProfile = await candidateDocumentService.prepareUpload(req.user._id.toString(), documentName, contentType);
+      // Candidate Documents: the server decides the stored name and key
+      const target = await candidateDocumentService.prepareUpload(req.user._id.toString(), documentName, contentType);
+      candidateProfile = target.profile;
+      s3Key = target.s3Key;
     } else if (candidateId) {
       candidateProfile = await CandidateProfileModel.findById(candidateId);
     } else if (documentId) {
@@ -43,7 +47,7 @@ export const getPresignedUploadUrl = async (req: Request, res: Response, next: N
     }
 
     const extension = filename.split('.').pop();
-    const s3Key = getCandidateS3Key(candidateProfile._id.toString(), category, documentName, extension);
+    s3Key ??= getCandidateS3Key(candidateProfile._id.toString(), category, documentName, extension);
 
     const { url, fields } = await generatePresignedPostUrl(s3Key, contentType, maxSize);
 
@@ -67,7 +71,6 @@ export const confirmUpload = async (req: Request, res: Response, next: NextFunct
     if (req.user && isRequiredDocumentUpload(req.user.role, category)) {
       const document = await candidateDocumentService.confirmUpload(req.user._id.toString(), {
         s3Key,
-        originalName,
         mimeType,
         size,
         documentName,
