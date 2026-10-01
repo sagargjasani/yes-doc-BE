@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { sessionStore } from '../../src/app';
+import { closeTestServer } from '../helpers/server';
 
 // No real email: every mailer function is an auto-mocked jest.fn().
 jest.mock('../../src/utils/mailer');
@@ -25,6 +26,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  await closeTestServer();
   await mongoose.connection.dropDatabase();
   await mongoose.disconnect();
   await sessionStore.close();

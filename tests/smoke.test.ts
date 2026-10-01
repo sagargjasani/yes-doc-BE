@@ -1,13 +1,13 @@
 import request from 'supertest';
-import app from '../src/app';
 import UserModel, { Role } from '../src/models/User.model';
 import { loginAs } from './helpers/auth';
+import { getTestServer } from './helpers/server';
 import { sendApplicationApprovedEmail } from '../src/utils/mailer';
 import { generatePresignedGetUrl, deleteS3File, getCandidateS3Key } from '../src/services/s3.service';
 
 describe('test harness', () => {
   it('rejects unauthenticated requests', async () => {
-    const res = await request(app).get('/api/auth/me');
+    const res = await request(getTestServer()).get('/api/auth/me');
     expect(res.status).toBe(401);
   });
 

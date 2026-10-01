@@ -1,9 +1,9 @@
 import request from 'supertest';
 import { randomUUID } from 'node:crypto';
-import app from '../../src/app';
 import UserModel, { Role } from '../../src/models/User.model';
 import CandidateProfileModel, { CandidateProfile } from '../../src/models/CandidateProfile.model';
 import { hashPassword } from '../../src/utils/password';
+import { getTestServer } from './server';
 
 const PASSWORD = 'Password123!';
 
@@ -37,7 +37,7 @@ export const loginAs = async (role: Role, profileOverrides: Partial<CandidatePro
         })
       : null;
 
-  const agent = request.agent(app);
+  const agent = request.agent(getTestServer());
   const res = await agent.post('/api/auth/login').send({ email, password: PASSWORD });
   if (res.status !== 200) {
     throw new Error(`loginAs(${role}) failed: ${res.status} ${JSON.stringify(res.body)}`);
