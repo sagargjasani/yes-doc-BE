@@ -2,7 +2,7 @@ import request from 'supertest';
 import UserModel, { Role } from '../src/models/User.model';
 import { loginAs } from './helpers/auth';
 import { getTestServer } from './helpers/server';
-import { sendApplicationApprovedEmail } from '../src/utils/mailer';
+import { sendEmail } from '../src/emails/send';
 import { generatePresignedGetUrl, deleteS3File, getCandidateS3Key } from '../src/services/s3.service';
 
 describe('test harness', () => {
@@ -43,9 +43,8 @@ describe('test harness', () => {
     });
   });
 
-  it('mocks the mailer and S3 so no real traffic happens', async () => {
-    await sendApplicationApprovedEmail('someone@example.com');
-    expect(sendApplicationApprovedEmail).toHaveBeenCalledWith('someone@example.com');
+  it('mocks email sending and S3 so no real traffic happens', async () => {
+    expect(jest.isMockFunction(sendEmail)).toBe(true);
     expect(await generatePresignedGetUrl('any-key')).toBe('https://s3.test/download');
     expect(jest.isMockFunction(deleteS3File)).toBe(true);
     expect(jest.isMockFunction(getCandidateS3Key)).toBe(false);

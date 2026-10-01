@@ -3,7 +3,8 @@ import dayjs from 'dayjs';
 import UserModel, { Role } from '../models/User.model';
 import { AppError } from '../utils/AppError';
 import { hashPassword } from '../utils/password';
-import { sendCreatePasswordEmail } from '../utils/mailer';
+import { sendAccountSetupEmail } from '../emails/accountSetup';
+import { ACCOUNT_SETUP_LINK_HOURS } from '../constants/linkExpiry';
 import { CreateUserDto, GetUsersQueryDto, UpdateUserDto } from '../validation/user.dto';
 
 export class UserService {
@@ -24,7 +25,7 @@ export class UserService {
     const randomPassword = crypto.randomBytes(16).toString('hex');
     const hashedPassword = await hashPassword(randomPassword);
 
-    // 4. Generate create/reset password token (valid for 24 hours)
+    // 4. Generate create/reset password token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const hash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
@@ -39,11 +40,11 @@ export class UserService {
       password: hashedPassword,
       isActive: true,
       resetPasswordToken: hash,
-      resetPasswordExpires: dayjs().add(24, 'hour').toDate(),
+      resetPasswordExpires: dayjs().add(ACCOUNT_SETUP_LINK_HOURS, 'hour').toDate(),
     });
 
     // 6. Send invitation email to set password
-    await sendCreatePasswordEmail(newUser.email, resetToken, newUser.role);
+    await sendAccountSetupEmail(newUser, resetToken);
 
     const userResponse = newUser.toObject();
     delete (userResponse as any).password;
@@ -172,10 +173,10 @@ export class UserService {
     const hash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
     user.resetPasswordToken = hash;
-    user.resetPasswordExpires = dayjs().add(24, 'hour').toDate();
+    user.resetPasswordExpires = dayjs().add(ACCOUNT_SETUP_LINK_HOURS, 'hour').toDate();
     await user.save();
 
-    await sendCreatePasswordEmail(user.email, resetToken, user.role);
+    await sendAccountSetupEmail(user, resetToken);
 
     return { message: 'Invitation email resent successfully' };
   }

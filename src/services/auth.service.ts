@@ -13,7 +13,9 @@ import {
 } from '../validation/auth.dto';
 import { hashPassword, comparePassword } from '../utils/password';
 import { AppError } from '../utils/AppError';
-import { sendPasswordResetEmail } from '../utils/mailer';
+import { appUrl } from '../emails/links';
+import { sendEmail } from '../emails/send';
+import { PASSWORD_RESET_LINK_HOURS } from '../constants/linkExpiry';
 
 export class AuthService {
   async register(data: RegisterDto, currentUser?: User) {
@@ -114,11 +116,13 @@ export class AuthService {
     const hash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
     user.resetPasswordToken = hash;
-    // Token valid for 1 hour
-    user.resetPasswordExpires = dayjs().add(1, 'hour').toDate();
+    user.resetPasswordExpires = dayjs().add(PASSWORD_RESET_LINK_HOURS, 'hour').toDate();
     await user.save();
 
-    await sendPasswordResetEmail(user.email, resetToken);
+    await sendEmail('passwordReset', {
+      to: user.email,
+      props: { firstName: user.firstName, resetUrl: appUrl(`/reset-password/${resetToken}`) },
+    });
   }
 
   async resetPassword(data: ResetPasswordDto) {

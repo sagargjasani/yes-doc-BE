@@ -10,7 +10,9 @@ import { uploadS3File, downloadS3File, generatePresignedGetUrl, generatePresigne
 import { formatDates } from '../utils/formatters';
 import { generateDocx } from '../utils/docx';
 import { AppError } from '../utils/AppError';
-import { sendReferenceRequestEmail } from '../utils/mailer';
+import { appUrl } from '../emails/links';
+import { sendEmail } from '../emails/send';
+import { REFERENCE_FORM_LINK_DAYS } from '../constants/linkExpiry';
 import logger from '../utils/logger';
 
 dayjs.extend(customParseFormat);
@@ -88,7 +90,7 @@ export const sendReferenceRequest = async (candidateId: string, refereeIndex: nu
   }
 
   const token = crypto.randomBytes(32).toString('hex');
-  const tokenExpiresAt = dayjs().add(7, 'day').toDate();
+  const tokenExpiresAt = dayjs().add(REFERENCE_FORM_LINK_DAYS, 'day').toDate();
 
   let refForm = await ReferenceFormModel.findOne({ candidate: candidate._id, refereeIndex });
 
@@ -122,13 +124,10 @@ export const sendReferenceRequest = async (candidateId: string, refereeIndex: nu
   await updateCandidateReferenceStatus(candidate._id.toString());
 
   const candidateFullName = candidate.fullName || `${candidate.firstName} ${candidate.lastName}`;
-  await sendReferenceRequestEmail(
-    refereeEmail,
-    refereeName,
-    candidateFullName,
-    token,
-    false
-  );
+  await sendEmail('referenceRequest', {
+    to: refereeEmail,
+    props: { refereeName, candidateName: candidateFullName, referenceUrl: appUrl(`/reference-form/${token}`) },
+  });
 
   return refForm;
 };
@@ -389,7 +388,7 @@ export const rejectReferenceForm = async (formId: string, reason: string) => {
   }
 
   const newToken = crypto.randomBytes(32).toString('hex');
-  const newTokenExpiresAt = dayjs().add(7, 'day').toDate();
+  const newTokenExpiresAt = dayjs().add(REFERENCE_FORM_LINK_DAYS, 'day').toDate();
 
   refForm.status = 'SENT';
   refForm.rejectionReason = reason;
@@ -403,14 +402,15 @@ export const rejectReferenceForm = async (formId: string, reason: string) => {
   const candidate = await CandidateProfileModel.findById(refForm.candidate);
   const candidateName = candidate ? candidate.fullName || `${candidate.firstName} ${candidate.lastName}` : 'Candidate';
 
-  await sendReferenceRequestEmail(
-    refForm.refereeEmail,
-    refForm.refereeName,
-    candidateName,
-    newToken,
-    true,
-    reason
-  );
+  await sendEmail('referenceResubmission', {
+    to: refForm.refereeEmail,
+    props: {
+      refereeName: refForm.refereeName,
+      candidateName,
+      reason,
+      referenceUrl: appUrl(`/reference-form/${newToken}`),
+    },
+  });
 
   return refForm;
 };

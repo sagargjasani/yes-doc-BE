@@ -6,8 +6,8 @@ import DocumentModel, { DocumentCategory, ReviewStatus } from '../models/Documen
 import { getApplicableRequiredDocuments, getVisaTypeLabel, visaTypeOptions } from '../constants/allDocumentsList';
 import { Role } from '../models/User.model';
 import { deleteS3File, getCandidateS3Key } from './s3.service';
-import { sendDocumentChangesRequiredEmail, sendDocumentsApprovedEmail } from '../utils/mailer';
-import logger from '../utils/logger';
+import { appUrl } from '../emails/links';
+import { sendEmail } from '../emails/send';
 import type { ReviewDecisionDto } from '../validation/candidateDocument.dto';
 import { AppError } from '../utils/AppError';
 
@@ -416,15 +416,14 @@ export class CandidateDocumentService {
       throw error;
     }
 
-    // The review is recorded; a failed email must not undo it
-    try {
-      if (rejected.length > 0) {
-        await sendDocumentChangesRequiredEmail(profile.email, rejected);
-      } else {
-        await sendDocumentsApprovedEmail(profile.email);
-      }
-    } catch (error) {
-      logger.error('Document review saved but the candidate email failed', error);
+    // The review is recorded; delivery is best-effort (ADR 0001)
+    if (rejected.length > 0) {
+      await sendEmail('documentChangesRequired', {
+        to: profile.email,
+        props: { firstName: profile.firstName, rejected, uploadUrl: appUrl('/candidate/document-form') },
+      });
+    } else {
+      await sendEmail('documentsApproved', { to: profile.email, props: { firstName: profile.firstName } });
     }
 
     return {

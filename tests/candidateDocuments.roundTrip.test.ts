@@ -1,9 +1,9 @@
 import dayjs from 'dayjs';
 import { Role } from '../src/models/User.model';
 import CandidateProfileModel from '../src/models/CandidateProfile.model';
-import { sendDocumentChangesRequiredEmail, sendDocumentsApprovedEmail } from '../src/utils/mailer';
 import { loginAs } from './helpers/auth';
 import { getChecklist, reviewDocuments as review, submittedCandidate, upload } from './helpers/documents';
+import { emailsSent } from './helpers/emails';
 
 const SUBMIT = '/api/candidate-documents/me/submit';
 
@@ -60,8 +60,7 @@ describe('Changes Required round trip', () => {
 
   it('runs the full round trip to Approved', async () => {
     const { candidate, email, reviewer, candidateId } = await changesRequiredCandidate();
-    expect(sendDocumentChangesRequiredEmail).toHaveBeenCalledTimes(1);
-    expect(sendDocumentChangesRequiredEmail).toHaveBeenCalledWith(email, expect.any(Array));
+    expect(emailsSent('documentChangesRequired').map(({ to }) => to)).toEqual([email]);
     const firstSubmittedAt = (await CandidateProfileModel.findById(candidateId))!.documentsSubmittedAt;
 
     // Approved documents are locked
@@ -93,8 +92,7 @@ describe('Changes Required round trip', () => {
     const approved = await review(reviewer, candidateId);
     expect(approved.status).toBe(200);
     expect(approved.body.data.documentStatus).toBe('APPROVED');
-    expect(sendDocumentsApprovedEmail).toHaveBeenCalledTimes(1);
-    expect(sendDocumentsApprovedEmail).toHaveBeenCalledWith(email);
+    expect(emailsSent('documentsApproved').map(({ to }) => to)).toEqual([email]);
     expect((await getChecklist(candidate)).documentStatus).toBe('APPROVED');
     expect((await upload(candidate, 'Passport')).presigned.status).toBe(409);
   });

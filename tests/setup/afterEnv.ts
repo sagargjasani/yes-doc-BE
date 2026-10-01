@@ -2,8 +2,8 @@ import mongoose from 'mongoose';
 import { sessionStore } from '../../src/app';
 import { closeTestServer } from '../helpers/server';
 
-// No real email: every mailer function is an auto-mocked jest.fn().
-jest.mock('../../src/utils/mailer');
+// No real email: sendEmail is an auto-mocked jest.fn(); renderEmail stays real.
+jest.mock('../../src/emails/send');
 
 // No real S3: every export is auto-mocked (including ones added later); pure helpers stay real.
 jest.mock('../../src/services/s3.service', () => {
@@ -29,5 +29,8 @@ afterAll(async () => {
   await closeTestServer();
   await mongoose.connection.dropDatabase();
   await mongoose.disconnect();
+  // A suite that never touches a session can finish before the store has connected;
+  // wait for it (any store call does) so close() doesn't interrupt its startup.
+  await new Promise((resolve) => sessionStore.length(resolve));
   await sessionStore.close();
 });

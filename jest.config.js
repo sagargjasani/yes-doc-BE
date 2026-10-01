@@ -3,12 +3,12 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   transform: {
-    '^.+\\.ts$': [
+    '^.+\\.tsx?$': [
       '@swc/jest',
       {
         jsc: {
-          parser: { syntax: 'typescript', decorators: true },
-          transform: { legacyDecorator: true, decoratorMetadata: true },
+          parser: { syntax: 'typescript', tsx: true, decorators: true },
+          transform: { legacyDecorator: true, decoratorMetadata: true, react: { runtime: 'automatic' } },
           target: 'es2022',
         },
         module: { type: 'commonjs' },

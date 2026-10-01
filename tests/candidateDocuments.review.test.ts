@@ -3,8 +3,8 @@ import type TestAgent from 'supertest/lib/agent';
 import { Role } from '../src/models/User.model';
 import CandidateProfileModel from '../src/models/CandidateProfile.model';
 import DocumentModel, { ReviewStatus } from '../src/models/Document.model';
-import { sendDocumentChangesRequiredEmail, sendDocumentsApprovedEmail } from '../src/utils/mailer';
 import { loginAs } from './helpers/auth';
+import { emailsSent } from './helpers/emails';
 import { APPROVED, candidateWithVisaType, submittedCandidate } from './helpers/documents';
 
 interface Decision {
@@ -49,8 +49,9 @@ describe('Document Review', () => {
     expect(res.body.data.documentStatus).toBe('APPROVED');
     expect((await CandidateProfileModel.findById(candidateId))?.documentStatus).toBe('APPROVED');
     expect(await DocumentModel.countDocuments({ candidate: new Types.ObjectId(candidateId), reviewStatus: ReviewStatus.APPROVED })).toBe(11);
-    expect(sendDocumentsApprovedEmail).toHaveBeenCalledWith(candidate.profile!.email);
-    expect(sendDocumentChangesRequiredEmail).not.toHaveBeenCalled();
+    expect(emailsSent()).toEqual([
+      { template: 'documentsApproved', to: candidate.profile!.email, props: { firstName: candidate.profile!.firstName } },
+    ]);
   });
 
   it('rejects some: Changes Required, reasons stored, email lists exactly the rejected documents', async () => {
@@ -68,11 +69,20 @@ describe('Document Review', () => {
     expect(passport).toMatchObject({ reviewStatus: 'REJECTED', rejectionReason: 'Photo page is cut off' });
     expect(await DocumentModel.countDocuments({ candidate: new Types.ObjectId(candidateId), reviewStatus: ReviewStatus.APPROVED })).toBe(9);
     // Catalogue order, not the order decisions were sent in
-    expect(sendDocumentChangesRequiredEmail).toHaveBeenCalledWith(candidate.profile!.email, [
-      { label: 'Passport', rejectionReason: 'Photo page is cut off' },
-      { label: 'Proof of Address 2', rejectionReason: 'Older than three months' },
+    expect(emailsSent()).toEqual([
+      {
+        template: 'documentChangesRequired',
+        to: candidate.profile!.email,
+        props: {
+          firstName: candidate.profile!.firstName,
+          rejected: [
+            { label: 'Passport', rejectionReason: 'Photo page is cut off' },
+            { label: 'Proof of Address 2', rejectionReason: 'Older than three months' },
+          ],
+          uploadUrl: expect.stringMatching(/\/candidate\/document-form$/),
+        },
+      },
     ]);
-    expect(sendDocumentsApprovedEmail).not.toHaveBeenCalled();
   });
 
   it('removes the Candidate from the Reviewer list', async () => {
@@ -88,8 +98,7 @@ describe('Document Review', () => {
     const expectUnchanged = async (candidateId: string) => {
       expect((await CandidateProfileModel.findById(candidateId))?.documentStatus).toBe('SUBMITTED');
       expect(await DocumentModel.countDocuments({ candidate: new Types.ObjectId(candidateId), reviewStatus: { $ne: ReviewStatus.PENDING } })).toBe(0);
-      expect(sendDocumentsApprovedEmail).not.toHaveBeenCalled();
-      expect(sendDocumentChangesRequiredEmail).not.toHaveBeenCalled();
+      expect(emailsSent()).toEqual([]);
     };
 
     it('when a Candidate Document has no decision', async () => {
@@ -175,10 +184,7 @@ describe('Document Review', () => {
       ).map((res) => res.status);
 
       expect(statuses.sort()).toEqual([200, 409]);
-      const emailsSent =
-        (sendDocumentsApprovedEmail as jest.Mock).mock.calls.length +
-        (sendDocumentChangesRequiredEmail as jest.Mock).mock.calls.length;
-      expect(emailsSent).toBe(1);
+      expect(emailsSent()).toHaveLength(1);
     });
 
     it('refuses a Candidate who has not submitted', async () => {
@@ -201,7 +207,7 @@ describe('Document Review', () => {
 
     expect(res.status).toBe(500);
     expect((await CandidateProfileModel.findById(candidateId))?.documentStatus).toBe('SUBMITTED');
-    expect(sendDocumentChangesRequiredEmail).not.toHaveBeenCalled();
+    expect(emailsSent()).toEqual([]);
     // and the review can be retried
     const retry = await reviewer.post(reviewUrl(candidateId)).send({ decisions });
     expect(retry.status).toBe(200);

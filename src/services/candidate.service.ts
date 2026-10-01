@@ -6,7 +6,10 @@ import CandidateProfileModel from '../models/CandidateProfile.model';
 import { AddCandidateDto } from '../validation/candidate.dto';
 import { hashPassword } from '../utils/password';
 import { AppError } from '../utils/AppError';
-import { sendCreatePasswordEmail, sendApplicationApprovedEmail, sendApplicationChangesRequiredEmail } from '../utils/mailer';
+import { sendAccountSetupEmail } from '../emails/accountSetup';
+import { appUrl } from '../emails/links';
+import { sendEmail } from '../emails/send';
+import { ACCOUNT_SETUP_LINK_HOURS } from '../constants/linkExpiry';
 import DocumentModel, { DocumentCategory } from '../models/Document.model';
 import fse from "fs-extra";
 import { downloadS3File, generatePresignedGetUrl, uploadS3File, getCandidateS3Key } from './s3.service';
@@ -55,19 +58,19 @@ export class CandidateService {
         applicationStatus: "INITIATED"
       }] as any, { session });
 
-      // 3. Generate setup password token (valid for 24 hours)
+      // 3. Generate setup password token
       const resetToken = crypto.randomBytes(32).toString('hex');
       const hash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
       newUser.resetPasswordToken = hash;
-      newUser.resetPasswordExpires = dayjs().add(24, 'hour').toDate(); // 24 hours
+      newUser.resetPasswordExpires = dayjs().add(ACCOUNT_SETUP_LINK_HOURS, 'hour').toDate();
       await newUser.save({ session });
 
       await session.commitTransaction();
 
       // 4. Send email (outside of transaction since it's external)
       if (data.sendRegistrationLink) {
-        await sendCreatePasswordEmail(newUser.email, resetToken);
+        await sendAccountSetupEmail(newUser, resetToken);
       }
 
       const userResponse = newUser.toObject();
@@ -90,16 +93,16 @@ export class CandidateService {
       throw new AppError('User not found', 404);
     }
 
-    // Generate setup password token (valid for 24 hours)
+    // Generate setup password token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const hash = crypto.createHash('sha256').update(resetToken).digest('hex');
 
     user.resetPasswordToken = hash;
-    user.resetPasswordExpires = dayjs().add(24, 'hour').toDate(); // 24 hours
+    user.resetPasswordExpires = dayjs().add(ACCOUNT_SETUP_LINK_HOURS, 'hour').toDate();
     await CandidateProfileModel.findOneAndUpdate({ user: userId }, { applicationStatus: "APPLICATION_FORM_SENT" });
     await user.save();
 
-    await sendCreatePasswordEmail(user.email, resetToken);
+    await sendAccountSetupEmail(user, resetToken);
   }
 
   async getMe(userId: string) {
@@ -215,7 +218,10 @@ export class CandidateService {
       profile.applicationStatus = 'APPLICATION_FORM_APPROVED';
       await profile.save();
 
-      await sendApplicationApprovedEmail(profile.email);
+      await sendEmail('applicationApproved', {
+        to: profile.email,
+        props: { firstName: profile.firstName, uploadUrl: appUrl('/candidate/document-form') },
+      });
       return profile;
     } catch (error) {
       console.log("Error in candidateService.approveApplicationForm :>> ", error);
@@ -232,7 +238,10 @@ export class CandidateService {
     profile.applicationStatus = 'APPLICATION_FORM_SENT';
     await profile.save();
 
-    await sendApplicationChangesRequiredEmail(profile.email, reason);
+    await sendEmail('applicationChangesRequired', {
+      to: profile.email,
+      props: { firstName: profile.firstName, reason, applicationUrl: appUrl('/candidate/application-form') },
+    });
     return profile;
   }
 

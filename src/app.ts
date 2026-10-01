@@ -20,6 +20,16 @@ import notificationRoutes from './routes/notification.routes';
 
 const app = express();
 
+// Email letterhead artwork, loaded by recipients' mail clients from any origin. Mounted before
+// helmet, whose default Cross-Origin-Resource-Policy (same-origin) would block those images.
+app.use(
+  '/email-assets',
+  express.static('./src/emails/templates/static', {
+    maxAge: '7d',
+    setHeaders: (res) => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
+  })
+);
+
 // Security Middlewares
 app.use(helmet());
 app.use(cors({ origin: true, credentials: true })); // Adjust origin in production
