@@ -6,10 +6,11 @@ import {
   getCandidateDocumentsForReview,
   getMyDocumentChecklist,
   listSubmittedCandidates,
+  reviewCandidateDocuments,
   setMyVisaType,
   submitMyDocuments,
 } from '../controllers/candidateDocument.controller';
-import { SetVisaTypeDto } from '../validation/candidateDocument.dto';
+import { ReviewDocumentsDto, SetVisaTypeDto } from '../validation/candidateDocument.dto';
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.post('/me/submit', requireRole(Role.CANDIDATE), submitMyDocuments);
 const reviewersOnly = requireRole(Role.ADMIN, Role.CONSULTANT, Role.COMPLIANCE);
 router.get('/submitted', reviewersOnly, listSubmittedCandidates);
 router.get('/:candidateId', reviewersOnly, getCandidateDocumentsForReview);
+router.post('/:candidateId/review', reviewersOnly, validateDto(ReviewDocumentsDto), reviewCandidateDocuments);
 
 export default router;

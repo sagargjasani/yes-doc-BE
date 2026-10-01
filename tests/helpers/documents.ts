@@ -49,3 +49,11 @@ export const uploadAllRequired = async (agent: TestAgent, skip: string[] = []) =
     if (!skip.includes(key)) await upload(agent, key);
   }
 };
+
+/** A Candidate who has uploaded every applicable Required Document and made a Document Submission. */
+export const submittedCandidate = async (visaType = 'BRITISH_IRISH') => {
+  const session = await candidateWithVisaType(visaType);
+  await uploadAllRequired(session.agent);
+  await session.agent.post('/api/candidate-documents/me/submit');
+  return session;
+};

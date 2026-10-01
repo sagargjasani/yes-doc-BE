@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { candidateDocumentService } from '../services/candidateDocument.service';
-import { SetVisaTypeDto } from '../validation/candidateDocument.dto';
+import { ReviewDocumentsDto, SetVisaTypeDto } from '../validation/candidateDocument.dto';
 import logger from '../utils/logger';
 
 export const getMyDocumentChecklist = async (req: Request, res: Response, next: NextFunction) => {
@@ -56,6 +56,22 @@ export const getCandidateDocumentsForReview = async (req: Request, res: Response
     });
   } catch (error) {
     logger.error('Error in getCandidateDocumentsForReview controller', error);
+    next(error);
+  }
+};
+
+export const reviewCandidateDocuments = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { decisions } = req.body as ReviewDocumentsDto;
+    const result = await candidateDocumentService.reviewDocuments(req.params.candidateId as string, decisions);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Document review submitted',
+      data: result,
+    });
+  } catch (error) {
+    logger.error('Error in reviewCandidateDocuments controller', error);
     next(error);
   }
 };

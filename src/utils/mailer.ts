@@ -241,3 +241,92 @@ export const sendReferenceRequestEmail = async (
   }
 };
 
+
+const escapeHtml = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+export interface RejectedDocumentNotice {
+  label: string;
+  rejectionReason: string;
+}
+
+export const sendDocumentsApprovedEmail = async (email: string) => {
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+
+    const info = await transporter.sendMail({
+      from: '"Hey Doc Admin" <admin@heydoc.com>',
+      to: email,
+      subject: 'Your Documents Have Been Approved',
+      text: `Hello,\n\n
+        Good news: all of your documents have been reviewed and approved. No further action is needed for this step.\n\n`,
+      html: `
+        <p>Hello,</p>
+        <p>Good news: all of your documents have been reviewed and approved. No further action is needed for this step.</p>
+      `,
+    });
+
+    logger.info(`Message sent: ${info.messageId}`);
+    logger.info(`Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+  } catch (error) {
+    logger.error('Error sending documents approved email', error);
+    throw new Error('Could not send documents approved email');
+  }
+};
+
+export const sendDocumentChangesRequiredEmail = async (email: string, rejected: RejectedDocumentNotice[]) => {
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const uploadUrl = `${frontendUrl}/candidate/document-form`;
+    const textList = rejected.map(({ label, rejectionReason }) => `- ${label}: ${rejectionReason}`).join('\n');
+    const htmlList = rejected
+      .map(({ label, rejectionReason }) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(rejectionReason)}</li>`)
+      .join('');
+
+    const info = await transporter.sendMail({
+      from: '"Hey Doc Admin" <admin@heydoc.com>',
+      to: email,
+      subject: 'Changes Required for Your Documents',
+      text: `Hello,\n\n
+        We have reviewed your documents. The following need to be uploaded again:\n\n
+        ${textList}\n\n
+        Please upload replacements and resubmit using the link below:\n\n
+        ${uploadUrl}\n\n`,
+      html: `
+        <p>Hello,</p>
+        <p>We have reviewed your documents. The following need to be uploaded again:</p>
+        <ul>${htmlList}</ul>
+        <p>Please upload replacements and resubmit using the link below:</p>
+        <p><a href="${uploadUrl}">${uploadUrl}</a></p>
+      `,
+    });
+
+    logger.info(`Message sent: ${info.messageId}`);
+    logger.info(`Preview URL: ${nodemailer.getTestMessageUrl(info)}`);
+  } catch (error) {
+    logger.error('Error sending document changes required email', error);
+    throw new Error('Could not send document changes required email');
+  }
+};
