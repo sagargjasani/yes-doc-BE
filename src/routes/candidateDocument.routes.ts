@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from '../middlewares/auth.middleware';
 import { validateDto } from '../middlewares/validate.middleware';
 import { Role } from '../models/User.model';
 import {
+  getCandidateDocumentsForReview,
   getMyDocumentChecklist,
   listSubmittedCandidates,
   setMyVisaType,
@@ -20,6 +21,8 @@ router.put('/me/visa-type', requireRole(Role.CANDIDATE), validateDto(SetVisaType
 router.post('/me/submit', requireRole(Role.CANDIDATE), submitMyDocuments);
 
 // Reviewers
-router.get('/submitted', requireRole(Role.ADMIN, Role.CONSULTANT, Role.COMPLIANCE), listSubmittedCandidates);
+const reviewersOnly = requireRole(Role.ADMIN, Role.CONSULTANT, Role.COMPLIANCE);
+router.get('/submitted', reviewersOnly, listSubmittedCandidates);
+router.get('/:candidateId', reviewersOnly, getCandidateDocumentsForReview);
 
 export default router;

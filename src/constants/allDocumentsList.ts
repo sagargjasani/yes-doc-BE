@@ -123,6 +123,9 @@ export const allDocumentsList: RequiredDocumentDefinition[] = [
   },
 ];
 
+export const getVisaTypeLabel = (visaType?: VisaType | null): string | null =>
+  visaTypeOptions.find((option) => option.value === visaType)?.label ?? null;
+
 /** The single source of truth for which Required Documents a Candidate must provide. */
 export const getApplicableRequiredDocuments = (visaType?: VisaType | null): RequiredDocumentDefinition[] =>
   visaType ? allDocumentsList.filter((doc) => doc.visaTypes.includes(visaType)) : [];

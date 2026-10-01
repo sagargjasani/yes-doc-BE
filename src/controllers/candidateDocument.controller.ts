@@ -46,6 +46,20 @@ export const listSubmittedCandidates = async (req: Request, res: Response, next:
   }
 };
 
+export const getCandidateDocumentsForReview = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const view = await candidateDocumentService.getForReview(req.params.candidateId as string);
+
+    res.status(200).json({
+      status: 'success',
+      data: view,
+    });
+  } catch (error) {
+    logger.error('Error in getCandidateDocumentsForReview controller', error);
+    next(error);
+  }
+};
+
 export const setMyVisaType = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { visaType } = req.body as SetVisaTypeDto;

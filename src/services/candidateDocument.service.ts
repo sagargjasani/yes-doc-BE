@@ -1,8 +1,9 @@
 import { DocumentType } from '@typegoose/typegoose';
 import dayjs from 'dayjs';
+import { isValidObjectId } from 'mongoose';
 import CandidateProfileModel, { CandidateProfile, DocumentStatus, VisaType } from '../models/CandidateProfile.model';
 import DocumentModel, { DocumentCategory, ReviewStatus } from '../models/Document.model';
-import { getApplicableRequiredDocuments, visaTypeOptions } from '../constants/allDocumentsList';
+import { getApplicableRequiredDocuments, getVisaTypeLabel, visaTypeOptions } from '../constants/allDocumentsList';
 import { Role } from '../models/User.model';
 import { deleteS3File, getCandidateS3Key } from './s3.service';
 import { AppError } from '../utils/AppError';
@@ -65,6 +66,20 @@ export interface DocumentChecklist {
   visaTypeOptions: typeof visaTypeOptions;
   checklist: ChecklistItem[];
 }
+
+/** What a Reviewer sees for one Candidate: Pending Candidate Documents first. */
+export interface DocumentReviewView {
+  visaType: VisaType | null;
+  visaTypeLabel: string | null;
+  documentStatus: DocumentStatus;
+  checklist: ChecklistItem[];
+}
+
+// Pending (still to decide) before decided; Required Documents without an Upload last
+const reviewOrder = (item: ChecklistItem) => {
+  if (!item.document) return 2;
+  return item.document.reviewStatus === ReviewStatus.PENDING ? 0 : 1;
+};
 
 export class CandidateDocumentService {
   /** The Candidate's profile, only once their application form is approved. */
@@ -221,6 +236,22 @@ export class CandidateDocumentService {
       .sort({ documentsSubmittedAt: 1 })
       .select('firstName middleName lastName email mobile appliedFor documentsSubmittedAt')
       .lean();
+  }
+
+  async getForReview(candidateId: string): Promise<DocumentReviewView> {
+    const profile = isValidObjectId(candidateId) ? await CandidateProfileModel.findById(candidateId) : null;
+    if (!profile) {
+      throw new AppError('Candidate not found', 404);
+    }
+
+    const { visaType, documentStatus, checklist } = await this.buildChecklist(profile);
+    return {
+      visaType,
+      visaTypeLabel: getVisaTypeLabel(visaType),
+      documentStatus,
+      // Array sort is stable, so catalogue order holds within each group
+      checklist: [...checklist].sort((a, b) => reviewOrder(a) - reviewOrder(b)),
+    };
   }
 }
 
