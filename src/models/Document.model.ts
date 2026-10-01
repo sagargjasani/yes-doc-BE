@@ -8,6 +8,13 @@ export enum DocumentCategory {
   FORM = 'Form',
 }
 
+// Review of a Candidate Document by a Reviewer. Only meaningful for category Document.
+export enum ReviewStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
 export type TDocumentCategoryValue = `${DocumentCategory}`;
 
 export const documentCategoryValues: DocumentCategory[] = Object.values(DocumentCategory);
@@ -33,6 +40,12 @@ export class Document extends TimeStamps {
 
   @prop({ type: () => Number, required: true })
   public size!: number;
+
+  @prop({ type: () => String, enum: ReviewStatus, default: ReviewStatus.PENDING })
+  public reviewStatus!: ReviewStatus;
+
+  @prop({ type: () => String, default: null })
+  public rejectionReason?: string | null;
 }
 
 const DocumentModel = getModelForClass(Document, {

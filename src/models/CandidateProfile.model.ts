@@ -3,6 +3,22 @@ import { TimeStamps } from '@typegoose/typegoose/lib/defaultClasses';
 import { User } from './User.model';
 import { formatName } from '../utils/formatters';
 
+export enum VisaType {
+  BRITISH_IRISH = 'BRITISH_IRISH',
+  SETTLED = 'SETTLED',
+  STUDENT = 'STUDENT',
+  DEPENDANT = 'DEPENDANT',
+  SKILLED_WORKER = 'SKILLED_WORKER',
+}
+
+// Where the Candidate's set of Candidate Documents stands.
+export enum DocumentStatus {
+  NOT_SUBMITTED = 'NOT_SUBMITTED',
+  SUBMITTED = 'SUBMITTED',
+  CHANGES_REQUIRED = 'CHANGES_REQUIRED',
+  APPROVED = 'APPROVED',
+}
+
 export class CandidateProfile extends TimeStamps {
   @prop({ ref: () => User, required: true, unique: true })
   public user!: Ref<User>;
@@ -246,6 +262,12 @@ export class CandidateProfile extends TimeStamps {
 
   @prop({ type: () => String, enum: ['NOT_SENT', 'SENT', 'SUBMITTED', 'APPROVED'], default: 'NOT_SENT' })
   public referenceStatus?: string;
+
+  @prop({ type: () => String, enum: VisaType })
+  public visaType?: VisaType;
+
+  @prop({ type: () => String, enum: DocumentStatus, default: DocumentStatus.NOT_SUBMITTED })
+  public documentStatus?: DocumentStatus;
 
   public get fullName(): string {
     return [this.firstName, this.middleName, this.lastName].filter(Boolean).join(' ');

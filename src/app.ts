@@ -14,6 +14,7 @@ import commonAttributesRoutes from './routes/commonAttributes.routes';
 import userRoutes from './routes/user.routes';
 import candidateRoutes from './routes/candidate.routes';
 import documentRoutes from './routes/document.routes';
+import candidateDocumentRoutes from './routes/candidateDocument.routes';
 import referenceFormRoutes from './routes/referenceForm.routes';
 import notificationRoutes from './routes/notification.routes';
 
@@ -68,6 +69,7 @@ app.use('/api/common-attributes', commonAttributesRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/candidate-documents', candidateDocumentRoutes);
 app.use('/api/reference-forms', referenceFormRoutes);
 app.use('/api/notifications', notificationRoutes);
 
