@@ -57,3 +57,14 @@ export const submittedCandidate = async (visaType = 'BRITISH_IRISH') => {
   await session.agent.post('/api/candidate-documents/me/submit');
   return session;
 };
+
+/** Submits a Document Review that rejects the keys in `rejections` (key → Rejection Reason) and approves the rest. */
+export const reviewDocuments = async (reviewer: TestAgent, candidateId: string, rejections: Record<string, string> = {}) => {
+  const view = await reviewer.get(`/api/candidate-documents/${candidateId}`);
+  const decisions = view.body.data.checklist.map((item: { key: string; document: { _id: string } }) =>
+    item.key in rejections
+      ? { documentId: item.document._id, status: 'REJECTED', rejectionReason: rejections[item.key] }
+      : { documentId: item.document._id, status: 'APPROVED' }
+  );
+  return reviewer.post(`/api/candidate-documents/${candidateId}/review`).send({ decisions });
+};

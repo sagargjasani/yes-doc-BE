@@ -84,6 +84,10 @@ const reviewOrder = (item: ChecklistItem) => {
   return item.document.reviewStatus === ReviewStatus.PENDING ? 0 : 1;
 };
 
+// Candidate view: Rejected first so they can act on them; otherwise catalogue order (stable sort)
+const candidateOrder = (item: ChecklistItem) => (item.document?.reviewStatus === ReviewStatus.REJECTED ? 0 : 1);
+const rejectedFirst = (checklist: ChecklistItem[]) => [...checklist].sort((a, b) => candidateOrder(a) - candidateOrder(b));
+
 const alreadyReviewed = () => new AppError('These documents have already been reviewed', 409);
 
 interface ReviewOutcome {
@@ -179,9 +183,15 @@ export class CandidateDocumentService {
     };
   }
 
+  /** The checklist as the Candidate sees it: Rejected documents first. */
+  private async buildCandidateChecklist(profile: DocumentType<CandidateProfile>): Promise<DocumentChecklist> {
+    const view = await this.buildChecklist(profile);
+    return { ...view, checklist: rejectedFirst(view.checklist) };
+  }
+
   async getMyChecklist(userId: string): Promise<DocumentChecklist> {
     const profile = await this.getApprovedProfile(userId);
-    return this.buildChecklist(profile);
+    return this.buildCandidateChecklist(profile);
   }
 
   /** The Candidate's own profile, once every Upload rule allows this file for this Required Document. */
@@ -198,6 +208,15 @@ export class CandidateDocumentService {
     const isApplicable = getApplicableRequiredDocuments(profile.visaType).some((doc) => doc.key === documentName);
     if (!isApplicable) {
       throw new AppError('This document is not required for your visa type', 400);
+    }
+
+    const existing = await DocumentModel.findOne({
+      candidate: profile._id,
+      category: DocumentCategory.DOCUMENT,
+      documentName,
+    }).select('reviewStatus');
+    if (existing?.reviewStatus === ReviewStatus.APPROVED) {
+      throw new AppError('This document has been approved and cannot be replaced', 409);
     }
 
     return profile;
@@ -246,7 +265,7 @@ export class CandidateDocumentService {
     // Targeted update: don't re-validate unrelated (possibly legacy) profile fields
     await CandidateProfileModel.updateOne({ _id: profile._id }, { $set: { visaType } });
     profile.visaType = visaType;
-    return this.buildChecklist(profile);
+    return this.buildCandidateChecklist(profile);
   }
 
   /** Document Submission: hands the full set of applicable Candidate Documents over for review. */
@@ -263,6 +282,12 @@ export class CandidateDocumentService {
     if (missing.length > 0) {
       throw new AppError(`Please upload all required documents before submitting. Missing: ${missing.join(', ')}`, 400);
     }
+    const stillRejected = checklist
+      .filter((item) => item.document?.reviewStatus === ReviewStatus.REJECTED)
+      .map((item) => item.label);
+    if (stillRejected.length > 0) {
+      throw new AppError(`Please replace the rejected documents before submitting: ${stillRejected.join(', ')}`, 400);
+    }
 
     // Conditional on the status still being editable, so simultaneous Submissions can't both succeed
     const submittedAt = dayjs().toDate();
@@ -276,7 +301,7 @@ export class CandidateDocumentService {
     profile.documentStatus = DocumentStatus.SUBMITTED;
     profile.documentsSubmittedAt = submittedAt;
 
-    return this.buildChecklist(profile);
+    return this.buildCandidateChecklist(profile);
   }
 
   /** Candidates awaiting a Reviewer: Document Status Submitted, oldest Submission first. */
