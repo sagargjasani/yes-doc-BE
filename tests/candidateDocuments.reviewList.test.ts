@@ -51,6 +51,48 @@ describe('Reviewer list of Document Submissions', () => {
     });
   });
 
+  describe('pagination', () => {
+    const threeSubmitted = async () => {
+      const ids = [];
+      for (const daysAgo of [3, 2, 1]) {
+        ids.push((await candidateWith(DocumentStatus.SUBMITTED, daysAgo)).profile!._id.toString());
+      }
+      return ids;
+    };
+
+    it('pages through Candidates oldest Submission first', async () => {
+      const [oldest, middle, newest] = await threeSubmitted();
+      const { agent } = await loginAs(Role.ADMIN);
+
+      const first = await agent.get(`${LIST}?page=1&limit=2`);
+      const second = await agent.get(`${LIST}?page=2&limit=2`);
+
+      expect(first.body.data.map((row: { _id: string }) => row._id)).toEqual([oldest, middle]);
+      expect(first.body.pagination).toEqual({ total: 3, page: 1, limit: 2, totalPages: 2, hasNextPage: true });
+      expect(second.body.data.map((row: { _id: string }) => row._id)).toEqual([newest]);
+      expect(second.body.pagination).toEqual({ total: 3, page: 2, limit: 2, totalPages: 2, hasNextPage: false });
+    });
+
+    it('defaults to page 1 of 10 for missing or invalid values', async () => {
+      await threeSubmitted();
+      const { agent } = await loginAs(Role.ADMIN);
+
+      for (const query of ['', '?page=abc&limit=xyz', '?page=0&limit=-5']) {
+        const res = await agent.get(`${LIST}${query}`);
+        expect(res.body.pagination).toMatchObject({ page: 1, limit: 10, total: 3, totalPages: 1 });
+        expect(res.body.data).toHaveLength(3);
+      }
+    });
+
+    it('caps the page size at 100', async () => {
+      const { agent } = await loginAs(Role.ADMIN);
+
+      const res = await agent.get(`${LIST}?limit=5000`);
+
+      expect(res.body.pagination.limit).toBe(100);
+    });
+  });
+
   it.each([Role.ADMIN, Role.CONSULTANT, Role.COMPLIANCE])('is open to %s', async (role) => {
     const { agent } = await loginAs(role);
 

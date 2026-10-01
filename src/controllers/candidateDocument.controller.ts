@@ -34,11 +34,14 @@ export const submitMyDocuments = async (req: Request, res: Response, next: NextF
 
 export const listSubmittedCandidates = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const candidates = await candidateDocumentService.listSubmitted();
+    const page = parseInt(req.query.page as string, 10);
+    const limit = parseInt(req.query.limit as string, 10);
+    const result = await candidateDocumentService.listSubmitted(page, limit);
 
     res.status(200).json({
       status: 'success',
-      data: candidates,
+      data: result.candidates,
+      pagination: result.pagination,
     });
   } catch (error) {
     logger.error('Error in listSubmittedCandidates controller', error);

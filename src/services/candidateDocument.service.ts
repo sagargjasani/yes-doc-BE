@@ -88,6 +88,9 @@ const reviewOrder = (item: ChecklistItem) => {
 const candidateOrder = (item: ChecklistItem) => (item.document?.reviewStatus === ReviewStatus.REJECTED ? 0 : 1);
 const rejectedFirst = (checklist: ChecklistItem[]) => [...checklist].sort((a, b) => candidateOrder(a) - candidateOrder(b));
 
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 100;
+
 const alreadyReviewed = () => new AppError('These documents have already been reviewed', 409);
 
 interface ReviewOutcome {
@@ -304,12 +307,29 @@ export class CandidateDocumentService {
     return this.buildCandidateChecklist(profile);
   }
 
-  /** Candidates awaiting a Reviewer: Document Status Submitted, oldest Submission first. */
-  async listSubmitted() {
-    return CandidateProfileModel.find({ documentStatus: DocumentStatus.SUBMITTED })
-      .sort({ documentsSubmittedAt: 1 })
-      .select('firstName middleName lastName email mobile appliedFor documentsSubmittedAt')
-      .lean();
+  /** Candidates awaiting a Reviewer: Document Status Submitted, oldest Submission first, one page at a time. */
+  async listSubmitted(page: number, limit: number) {
+    // Missing, non-numeric or non-positive values fall back to the defaults
+    const pageNum = page > 0 ? page : 1;
+    const limitNum = Math.min(MAX_PAGE_SIZE, limit > 0 ? limit : DEFAULT_PAGE_SIZE);
+    const filter = { documentStatus: DocumentStatus.SUBMITTED };
+
+    const [total, candidates] = await Promise.all([
+      CandidateProfileModel.countDocuments(filter),
+      CandidateProfileModel.find(filter)
+        // _id breaks ties so pages don't overlap when Submissions share a timestamp
+        .sort({ documentsSubmittedAt: 1, _id: 1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum)
+        .select('firstName middleName lastName email mobile appliedFor documentsSubmittedAt')
+        .lean(),
+    ]);
+
+    const totalPages = Math.ceil(total / limitNum);
+    return {
+      candidates,
+      pagination: { total, page: pageNum, limit: limitNum, totalPages, hasNextPage: pageNum < totalPages },
+    };
   }
 
   async getForReview(candidateId: string): Promise<DocumentReviewView> {
