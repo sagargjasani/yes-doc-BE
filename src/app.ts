@@ -28,6 +28,7 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
   message: 'Too many requests from this IP, please try again after 15 minutes',
+  skip: () => env.NODE_ENV === 'test',
 });
 app.use('/api', limiter);
 
@@ -46,8 +47,10 @@ app.use(
 );
 
 // Session Middleware with MongoDB
+export const sessionStore = MongoStore.create({ mongoUrl: env.MONGO_URI });
+
 export const sessionMiddleware = session({
-  store: MongoStore.create({ mongoUrl: env.MONGO_URI }),
+  store: sessionStore,
   secret: env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,

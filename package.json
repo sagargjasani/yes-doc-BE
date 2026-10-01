@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
+    "typecheck": "tsc --noEmit -p . && tsc -p tests",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "seed:admin": "tsx seedAdmin.ts",
@@ -46,6 +47,8 @@
     "winston": "^3.19.0"
   },
   "devDependencies": {
+    "@swc/core": "^1.16.13",
+    "@swc/jest": "^0.2.39",
     "@types/bcryptjs": "^3.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -58,8 +61,8 @@
     "@types/supertest": "^7.2.1",
     "@types/uuid": "^11.0.0",
     "jest": "^30.4.2",
+    "mongodb-memory-server": "^11.3.0",
     "supertest": "^7.2.2",
-    "ts-jest": "^29.4.12",
     "tsx": "^4.23.9",
     "typescript": "^7.0.2"
   }
