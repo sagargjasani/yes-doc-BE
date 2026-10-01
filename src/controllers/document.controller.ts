@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { generatePresignedPostUrl, generatePresignedGetUrl, getCandidateS3Key, deleteS3File } from '../services/s3.service';
 import DocumentModel from '../models/Document.model';
 import CandidateProfileModel from '../models/CandidateProfile.model';
+import { candidateDocumentService, isRequiredDocumentUpload } from '../services/candidateDocument.service';
 import { AppError } from '../utils/AppError';
 
 export const getPresignedUploadUrl = async (req: Request, res: Response, next: NextFunction) => {
@@ -14,7 +15,9 @@ export const getPresignedUploadUrl = async (req: Request, res: Response, next: N
     }
 
     let candidateProfile;
-    if (candidateId) {
+    if (req.user && isRequiredDocumentUpload(req.user.role, category)) {
+      candidateProfile = await candidateDocumentService.prepareUpload(req.user._id.toString(), documentName, contentType);
+    } else if (candidateId) {
       candidateProfile = await CandidateProfileModel.findById(candidateId);
     } else if (documentId) {
       const existingDoc = await DocumentModel.findById(documentId);
@@ -60,6 +63,18 @@ export const getPresignedUploadUrl = async (req: Request, res: Response, next: N
 export const confirmUpload = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { s3Key, originalName, mimeType, category, size, documentName, candidateId, documentId } = req.body;
+
+    if (req.user && isRequiredDocumentUpload(req.user.role, category)) {
+      const document = await candidateDocumentService.confirmUpload(req.user._id.toString(), {
+        s3Key,
+        originalName,
+        mimeType,
+        size,
+        documentName,
+      });
+      res.status(201).json({ status: 'success', data: { document } });
+      return;
+    }
 
     let candidateProfile;
     if (candidateId) {

@@ -2,7 +2,24 @@ import { DocumentType } from '@typegoose/typegoose';
 import CandidateProfileModel, { CandidateProfile, DocumentStatus, VisaType } from '../models/CandidateProfile.model';
 import DocumentModel, { DocumentCategory, ReviewStatus } from '../models/Document.model';
 import { getApplicableRequiredDocuments, visaTypeOptions } from '../constants/allDocumentsList';
+import { Role } from '../models/User.model';
+import { deleteS3File, getCandidateS3Key } from './s3.service';
 import { AppError } from '../utils/AppError';
+
+/** Candidates uploading against a Required Document follow the Upload rules; staff uploads do not. */
+export const isRequiredDocumentUpload = (role: Role, category: string) =>
+  role === Role.CANDIDATE && category === DocumentCategory.DOCUMENT;
+
+export interface ConfirmedUpload {
+  s3Key: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  documentName: string;
+}
+
+// Candidate Documents must be previewable by Reviewers (PDF inline, images as images).
+const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
 
 export interface CandidateDocumentSummary {
   _id: string;
@@ -79,6 +96,58 @@ export class CandidateDocumentService {
   async getMyChecklist(userId: string): Promise<DocumentChecklist> {
     const profile = await this.getApprovedProfile(userId);
     return this.buildChecklist(profile);
+  }
+
+  /** The Candidate's own profile, once every Upload rule allows this file for this Required Document. */
+  async prepareUpload(userId: string, documentName: string, mimeType: string) {
+    const profile = await this.getApprovedProfile(userId);
+
+    if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+      throw new AppError('Only PDF, JPG and PNG files are accepted', 400);
+    }
+    if (!profile.visaType) {
+      throw new AppError('Choose your visa type before uploading documents', 400);
+    }
+    const isApplicable = getApplicableRequiredDocuments(profile.visaType).some((doc) => doc.key === documentName);
+    if (!isApplicable) {
+      throw new AppError('This document is not required for your visa type', 400);
+    }
+
+    return profile;
+  }
+
+  /**
+   * Records a completed Upload: replaces the Candidate Document for this Required Document
+   * (deleting the previous file) and puts it back to Pending for review.
+   */
+  async confirmUpload(userId: string, upload: ConfirmedUpload) {
+    const { s3Key, originalName, mimeType, size, documentName } = upload;
+    const profile = await this.prepareUpload(userId, documentName, mimeType);
+
+    // The key must be the one presign issued for this Candidate and Required Document
+    const expectedKeyPrefix = `${getCandidateS3Key(profile._id.toString(), DocumentCategory.DOCUMENT, documentName)}.`;
+    if (typeof s3Key !== 'string' || !s3Key.startsWith(expectedKeyPrefix)) {
+      throw new AppError('Uploaded file does not match this document', 400);
+    }
+
+    const filter = { candidate: profile._id, category: DocumentCategory.DOCUMENT, documentName };
+    const existing = await DocumentModel.findOne(filter);
+    if (existing && existing.s3Key !== s3Key) {
+      await deleteS3File(existing.s3Key);
+    }
+
+    return DocumentModel.findOneAndUpdate(
+      filter,
+      {
+        s3Key,
+        originalName,
+        mimeType,
+        size,
+        reviewStatus: ReviewStatus.PENDING,
+        rejectionReason: null,
+      },
+      { new: true, upsert: true }
+    );
   }
 
   async setMyVisaType(userId: string, visaType: VisaType): Promise<DocumentChecklist> {
