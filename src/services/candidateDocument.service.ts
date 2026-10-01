@@ -1,4 +1,5 @@
 import { DocumentType } from '@typegoose/typegoose';
+import dayjs from 'dayjs';
 import CandidateProfileModel, { CandidateProfile, DocumentStatus, VisaType } from '../models/CandidateProfile.model';
 import DocumentModel, { DocumentCategory, ReviewStatus } from '../models/Document.model';
 import { getApplicableRequiredDocuments, visaTypeOptions } from '../constants/allDocumentsList';
@@ -17,6 +18,27 @@ export interface ConfirmedUpload {
   size: number;
   documentName: string;
 }
+
+const documentStatusOf = (profile: CandidateProfile) => profile.documentStatus ?? DocumentStatus.NOT_SUBMITTED;
+
+// Matches profiles whose Candidate Documents can still change (older profiles have no documentStatus)
+const EDITABLE_STATUS_FILTER = {
+  $or: [
+    { documentStatus: { $in: [DocumentStatus.NOT_SUBMITTED, DocumentStatus.CHANGES_REQUIRED] } },
+    { documentStatus: { $exists: false } },
+  ],
+};
+
+/** Candidate Documents can change only while the set is Not Submitted or Changes Required. */
+const assertDocumentsEditable = (profile: CandidateProfile) => {
+  const status = documentStatusOf(profile);
+  if (status === DocumentStatus.SUBMITTED) {
+    throw new AppError('Your documents are under review and cannot be changed', 409);
+  }
+  if (status === DocumentStatus.APPROVED) {
+    throw new AppError('Your documents have been approved and cannot be changed', 409);
+  }
+};
 
 // Candidate Documents must be previewable by Reviewers (PDF inline, images as images).
 const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
@@ -58,7 +80,7 @@ export class CandidateDocumentService {
   }
 
   private async buildChecklist(profile: DocumentType<CandidateProfile>): Promise<DocumentChecklist> {
-    const { visaType, documentStatus } = profile;
+    const { visaType } = profile;
     const requiredDocuments = getApplicableRequiredDocuments(visaType);
 
     const documents = await DocumentModel.find({
@@ -70,7 +92,7 @@ export class CandidateDocumentService {
 
     return {
       visaType: visaType ?? null,
-      documentStatus: documentStatus ?? DocumentStatus.NOT_SUBMITTED,
+      documentStatus: documentStatusOf(profile),
       visaTypeOptions,
       checklist: requiredDocuments.map(({ key, label, hint }) => {
         const doc = documentsByKey.get(key);
@@ -101,6 +123,7 @@ export class CandidateDocumentService {
   /** The Candidate's own profile, once every Upload rule allows this file for this Required Document. */
   async prepareUpload(userId: string, documentName: string, mimeType: string) {
     const profile = await this.getApprovedProfile(userId);
+    assertDocumentsEditable(profile);
 
     if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
       throw new AppError('Only PDF, JPG and PNG files are accepted', 400);
@@ -152,9 +175,43 @@ export class CandidateDocumentService {
 
   async setMyVisaType(userId: string, visaType: VisaType): Promise<DocumentChecklist> {
     const profile = await this.getApprovedProfile(userId);
+    // Locked from the first Document Submission: Reviewers approve documents against it
+    if (documentStatusOf(profile) !== DocumentStatus.NOT_SUBMITTED) {
+      throw new AppError('Your visa type cannot be changed after submitting your documents', 409);
+    }
     // Targeted update: don't re-validate unrelated (possibly legacy) profile fields
     await CandidateProfileModel.updateOne({ _id: profile._id }, { $set: { visaType } });
     profile.visaType = visaType;
+    return this.buildChecklist(profile);
+  }
+
+  /** Document Submission: hands the full set of applicable Candidate Documents over for review. */
+  async submitMyDocuments(userId: string): Promise<DocumentChecklist> {
+    const profile = await this.getApprovedProfile(userId);
+    assertDocumentsEditable(profile);
+
+    if (!profile.visaType) {
+      throw new AppError('Choose your visa type before submitting your documents', 400);
+    }
+
+    const { checklist } = await this.buildChecklist(profile);
+    const missing = checklist.filter((item) => !item.document).map((item) => item.label);
+    if (missing.length > 0) {
+      throw new AppError(`Please upload all required documents before submitting. Missing: ${missing.join(', ')}`, 400);
+    }
+
+    // Conditional on the status still being editable, so simultaneous Submissions can't both succeed
+    const submittedAt = dayjs().toDate();
+    const { modifiedCount } = await CandidateProfileModel.updateOne(
+      { _id: profile._id, ...EDITABLE_STATUS_FILTER },
+      { $set: { documentStatus: DocumentStatus.SUBMITTED, documentsSubmittedAt: submittedAt } }
+    );
+    if (modifiedCount === 0) {
+      throw new AppError('Your documents have already been submitted', 409);
+    }
+    profile.documentStatus = DocumentStatus.SUBMITTED;
+    profile.documentsSubmittedAt = submittedAt;
+
     return this.buildChecklist(profile);
   }
 }

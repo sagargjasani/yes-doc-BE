@@ -1,45 +1,8 @@
-import type TestAgent from 'supertest/lib/agent';
 import { Role } from '../src/models/User.model';
 import DocumentModel, { DocumentCategory, ReviewStatus } from '../src/models/Document.model';
 import { deleteS3File } from '../src/services/s3.service';
 import { loginAs } from './helpers/auth';
-
-const APPROVED = { applicationStatus: 'APPLICATION_FORM_APPROVED' };
-
-interface UploadOptions {
-  mimeType?: string;
-  filename?: string;
-  category?: string;
-  candidateId?: string;
-}
-
-/** Runs the presigned-upload + confirm-upload flow the way the web app does. */
-const upload = async (agent: TestAgent, documentName: string, options: UploadOptions = {}) => {
-  const { mimeType = 'application/pdf', filename = `${documentName}.pdf`, category = DocumentCategory.DOCUMENT } = options;
-  const body = { contentType: mimeType, category, size: 1000, documentName, candidateId: options.candidateId };
-
-  const presigned = await agent.post('/api/documents/presigned-upload').send({ ...body, filename });
-  if (presigned.status !== 200) return { presigned, confirm: null };
-
-  const confirm = await agent.post('/api/documents/confirm-upload').send({
-    ...body,
-    s3Key: presigned.body.data.s3Key,
-    originalName: filename,
-    mimeType,
-  });
-  return { presigned, confirm };
-};
-
-const checklistItem = async (agent: TestAgent, key: string) => {
-  const res = await agent.get('/api/candidate-documents/me');
-  return res.body.data.checklist.find((item: { key: string }) => item.key === key);
-};
-
-const candidateWithVisaType = async (visaType = 'BRITISH_IRISH') => {
-  const session = await loginAs(Role.CANDIDATE, APPROVED);
-  await session.agent.put('/api/candidate-documents/me/visa-type').send({ visaType });
-  return session;
-};
+import { APPROVED, candidateWithVisaType, checklistItem, upload } from './helpers/documents';
 
 describe('Candidate upload per Required Document', () => {
   it.each([
@@ -53,7 +16,7 @@ describe('Candidate upload per Required Document', () => {
 
     expect(presigned.status).toBe(200);
     expect(confirm?.status).toBe(201);
-    expect((await checklistItem(agent, 'Passport')).document).toMatchObject({
+    expect((await checklistItem(agent, 'Passport'))?.document).toMatchObject({
       originalName: filename,
       mimeType,
       reviewStatus: 'PENDING',
@@ -119,7 +82,7 @@ describe('Candidate upload per Required Document', () => {
     await upload(agent, 'Passport', { mimeType: 'image/png', filename: 'new.png' });
 
     expect(await DocumentModel.countDocuments({ documentName: 'Passport' })).toBe(1);
-    expect((await checklistItem(agent, 'Passport')).document.originalName).toBe('new.png');
+    expect((await checklistItem(agent, 'Passport'))?.document?.originalName).toBe('new.png');
     expect(deleteS3File).toHaveBeenCalledWith(oldKey);
   });
 
@@ -133,7 +96,7 @@ describe('Candidate upload per Required Document', () => {
 
     await upload(agent, 'Passport', { filename: 'clear-scan.pdf' });
 
-    expect((await checklistItem(agent, 'Passport')).document).toMatchObject({
+    expect((await checklistItem(agent, 'Passport'))?.document).toMatchObject({
       originalName: 'clear-scan.pdf',
       reviewStatus: 'PENDING',
       rejectionReason: null,
@@ -149,7 +112,7 @@ describe('Candidate upload per Required Document', () => {
     expect(await DocumentModel.countDocuments({ documentName: 'TermLetter' })).toBe(1);
 
     await agent.put('/api/candidate-documents/me/visa-type').send({ visaType: 'STUDENT' });
-    expect((await checklistItem(agent, 'TermLetter')).document).not.toBeNull();
+    expect((await checklistItem(agent, 'TermLetter'))?.document).not.toBeNull();
   });
 
   it('always uploads to the Candidate\'s own profile, ignoring a candidateId in the request', async () => {

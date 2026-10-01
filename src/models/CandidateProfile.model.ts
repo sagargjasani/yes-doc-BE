@@ -269,6 +269,10 @@ export class CandidateProfile extends TimeStamps {
   @prop({ type: () => String, enum: DocumentStatus, default: DocumentStatus.NOT_SUBMITTED })
   public documentStatus?: DocumentStatus;
 
+  // Time of the latest Document Submission
+  @prop({ type: () => Date })
+  public documentsSubmittedAt?: Date;
+
   public get fullName(): string {
     return [this.firstName, this.middleName, this.lastName].filter(Boolean).join(' ');
   }
