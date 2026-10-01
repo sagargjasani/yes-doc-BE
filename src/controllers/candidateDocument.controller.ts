@@ -32,6 +32,20 @@ export const submitMyDocuments = async (req: Request, res: Response, next: NextF
   }
 };
 
+export const listSubmittedCandidates = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const candidates = await candidateDocumentService.listSubmitted();
+
+    res.status(200).json({
+      status: 'success',
+      data: candidates,
+    });
+  } catch (error) {
+    logger.error('Error in listSubmittedCandidates controller', error);
+    next(error);
+  }
+};
+
 export const setMyVisaType = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { visaType } = req.body as SetVisaTypeDto;

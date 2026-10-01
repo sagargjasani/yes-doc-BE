@@ -214,6 +214,14 @@ export class CandidateDocumentService {
 
     return this.buildChecklist(profile);
   }
+
+  /** Candidates awaiting a Reviewer: Document Status Submitted, oldest Submission first. */
+  async listSubmitted() {
+    return CandidateProfileModel.find({ documentStatus: DocumentStatus.SUBMITTED })
+      .sort({ documentsSubmittedAt: 1 })
+      .select('firstName middleName lastName email mobile appliedFor documentsSubmittedAt')
+      .lean();
+  }
 }
 
 export const candidateDocumentService = new CandidateDocumentService();
