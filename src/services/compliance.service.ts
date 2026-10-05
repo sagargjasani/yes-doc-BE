@@ -10,13 +10,23 @@ import {
 import DocumentModel, { DocumentCategory } from '../models/Document.model';
 import { complianceFormsList, ComplianceFormDefinition } from '../constants/complianceFormsList';
 import { candidateTrainingService } from './candidateTraining.service';
+import PizZip from 'pizzip';
+import { imageSize } from 'image-size';
 import { generateDocx } from '../utils/docx';
-import { getCandidateS3Key, uploadS3File } from './s3.service';
+import { renderPdfFirstPage } from '../utils/pdfToPng';
+import { downloadS3File, getCandidateS3Key, uploadS3File } from './s3.service';
 import { AppError } from '../utils/AppError';
 import logger from '../utils/logger';
 
 export const DOCX_MIME_TYPE =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const PDF_MIME_TYPE = 'application/pdf';
+
+/** Largest size (px) of an evidence image; fits the narrowest evidence column (Clarity, ~227px inside its margins). */
+const EVIDENCE_IMAGE_BOX = { width: 220, height: 300 };
+
+/** Required Document key → image buffer, for the `{%images.<key>}` tags. */
+export type EvidenceImages = Map<string, Buffer>;
 
 /** A single work experience entry as consumed by `{#experiences}` blocks. */
 export interface ComplianceExperienceData {
@@ -145,14 +155,79 @@ export const buildComplianceRenderData = (
   trainings: buildTrainings(trainings),
 });
 
+/** Required Document keys used by `{%images.<key>}` tags across every staff profile template. */
+const scanEvidenceImageKeys = async (): Promise<string[]> => {
+  const keys = new Set<string>();
+  for (const form of complianceFormsList) {
+    const zip = new PizZip(await fse.readFile(form.templatePath));
+    const text = zip.file('word/document.xml')!.asText().replace(/<[^>]+>/g, '');
+    for (const [, key] of text.matchAll(/\{%images\.(\w+)\}/g)) keys.add(key);
+  }
+  return [...keys];
+};
+
+// The templates only change with a deploy, so they are scanned once per process.
+let evidenceImageKeys: Promise<string[]> | null = null;
+const getEvidenceImageKeys = () => (evidenceImageKeys ??= scanEvidenceImageKeys());
+
+/**
+ * Downloads the Candidate Documents the templates show as evidence and turns each into an
+ * embeddable image: PNG/JPG as-is, PDFs as a render of their first page.
+ * Any failure aborts generation, so a Profile never silently lacks evidence.
+ */
+export const buildEvidenceImages = async (candidateId: string): Promise<EvidenceImages> => {
+  const documents = await DocumentModel.find({
+    candidate: candidateId,
+    category: DocumentCategory.DOCUMENT,
+    documentName: { $in: await getEvidenceImageKeys() },
+  });
+
+  const images: EvidenceImages = new Map();
+  for (const document of documents) {
+    try {
+      const file = await downloadS3File(document.s3Key);
+      if (document.mimeType !== PDF_MIME_TYPE) {
+        images.set(document.documentName, file);
+        continue;
+      }
+
+      const { png, pageCount } = await renderPdfFirstPage(file);
+      if (pageCount > 1) {
+        logger.warn(
+          `${document.documentName} for candidate ${candidateId} has ${pageCount} pages; only the first is shown`
+        );
+      }
+      images.set(document.documentName, png);
+    } catch (error) {
+      logger.error(`Failed to prepare ${document.documentName} image for candidate ${candidateId}`, error);
+      throw new AppError(`Failed to prepare the ${document.documentName} image`, 500);
+    }
+  }
+  return images;
+};
+
+/** Scales an image down to fit the evidence column, keeping its aspect ratio. */
+const fitEvidenceImage = (image: Buffer): [number, number] => {
+  const { width = EVIDENCE_IMAGE_BOX.width, height = EVIDENCE_IMAGE_BOX.height } = imageSize(image);
+  const scale = Math.min(1, EVIDENCE_IMAGE_BOX.width / width, EVIDENCE_IMAGE_BOX.height / height);
+  return [Math.round(width * scale), Math.round(height * scale)];
+};
+
 const renderTemplate = async (
   form: ComplianceFormDefinition,
-  renderData: ComplianceRenderData
+  renderData: ComplianceRenderData,
+  evidenceImages: EvidenceImages
 ): Promise<Buffer> => {
   try {
     return await generateDocx({
       templatePath: form.templatePath,
       data: renderData,
+      // The image module treats any object tag value as already resolved, so tags carry
+      // the Required Document key and the buffer is looked up here.
+      imageOptions: {
+        getImage: (key) => evidenceImages.get(key)!,
+        getSize: (image) => fitEvidenceImage(image),
+      },
       // Training dates are legitimately null until completed, which would otherwise
       // flood the logs with "missing tag" warnings on every generation.
       nullGetter: () => '',
@@ -177,7 +252,12 @@ export const generateComplianceForms = async (
   }
 
   const trainings = await candidateTrainingService.getCandidateTrainings(candidateId);
-  const renderData = buildComplianceRenderData(profile, trainings);
+  // Built before anything is uploaded, so a failure here leaves no partial set of Profiles.
+  const evidenceImages = await buildEvidenceImages(candidateId);
+  const renderData = {
+    ...buildComplianceRenderData(profile, trainings),
+    images: Object.fromEntries([...evidenceImages.keys()].map((key) => [key, key])),
+  };
 
   // Relative to the backend working directory, i.e. backend/temps/<candidateId>/
   const tempDirectory = path.join('./temps', candidateId);
@@ -186,7 +266,7 @@ export const generateComplianceForms = async (
   const files: GeneratedComplianceForm[] = [];
 
   for (const form of complianceFormsList) {
-    const docxBuffer = await renderTemplate(form, renderData);
+    const docxBuffer = await renderTemplate(form, renderData, evidenceImages);
 
     const tempPath = path.join(tempDirectory, form.s3FileName);
     await fse.writeFile(tempPath, docxBuffer);
