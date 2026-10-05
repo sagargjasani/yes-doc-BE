@@ -1,6 +1,6 @@
 export const applicationFormsList = [
   {
-    templatePath: './src/assets/ApplicationForms/Application-Form.docx',
+    templatePath: './src/assets/applicationForms/Application-Form.docx',
     documentName: 'ApplicationForm', // for database only
     originalName: 'Application Form.docx', // to show user
     s3FileName: 'Application Form.docx', // for s3 key

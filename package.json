@@ -8,6 +8,8 @@
     "dev": "tsx watch src/server.ts",
     "email:dev": "email dev --dir src/emails/templates --port 3001",
     "build": "tsc",
+    "start": "node dist/server.js",
+    "package:eb": "rm -f deploy.zip && zip -qr deploy.zip package.json dist src -x 'src/*.ts' 'src/*.tsx' '*.DS_Store'",
     "seed:admin": "tsx seedAdmin.ts",
     "seed:common": "tsx seedCommonAttributes.ts",
     "fix:docx-tags": "tsx src/assets/fixDocxImageTags.ts",

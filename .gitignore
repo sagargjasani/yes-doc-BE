@@ -11,3 +11,10 @@ pnpm-debug.log*
 .DS_Store
 *.tsbuildinfo
 temps
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+!.elasticbeanstalk/config.yml
+deploy.zip

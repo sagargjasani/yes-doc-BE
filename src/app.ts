@@ -20,6 +20,9 @@ import notificationRoutes from './routes/notification.routes';
 
 const app = express();
 
+// Behind nginx on Elastic Beanstalk: trust its X-Forwarded-* headers so secure cookies, req.ip and rate limiting work.
+app.set('trust proxy', 1);
+
 // Email letterhead artwork, loaded by recipients' mail clients from any origin. Mounted before
 // helmet, whose default Cross-Origin-Resource-Policy (same-origin) would block those images.
 app.use(
