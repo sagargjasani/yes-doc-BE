@@ -257,6 +257,7 @@ export const generateComplianceForms = async (
   const renderData = {
     ...buildComplianceRenderData(profile, trainings),
     images: Object.fromEntries([...evidenceImages.keys()].map((key) => [key, key])),
+    todayDate: dayjs().format('DD/MM/YYYY'),
   };
 
   // Relative to the backend working directory, i.e. backend/temps/<candidateId>/
