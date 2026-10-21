@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit -p . && tsc -p tests",
     "dev": "tsx watch src/server.ts",
     "email:dev": "email dev --dir src/emails/templates --port 3001",
+    "email:verify": "tsx src/emails/verify.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "package:eb": "rm -f deploy.zip && zip -qr deploy.zip package.json dist src -x 'src/*.ts' 'src/*.tsx' '*.DS_Store'",

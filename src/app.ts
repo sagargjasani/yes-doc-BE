@@ -35,7 +35,7 @@ app.use(
 
 // Security Middlewares
 app.use(helmet());
-app.use(cors({ origin: true, credentials: true })); // Adjust origin in production
+app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
 
 // Rate Limiting
 const limiter = rateLimit({

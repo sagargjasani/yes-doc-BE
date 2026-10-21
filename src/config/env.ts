@@ -16,7 +16,11 @@ export const env = cleanEnv(process.env, {
   SMTP_SECURE: bool({ default: false }),
   SMTP_USER: str({ default: '' }),
   SMTP_PASS: str({ default: '' }),
-  EMAIL_FROM: str({ default: '"Yesdoc Healthcare" <no-reply@yesdochealthcare.co.uk>' }),
+  // Microsoft 365 OAuth2 (client credentials). When set, SMTP_USER signs in with an app token instead of SMTP_PASS.
+  SMTP_OAUTH_TENANT_ID: str({ default: '' }),
+  SMTP_OAUTH_CLIENT_ID: str({ default: '' }),
+  SMTP_OAUTH_CLIENT_SECRET: str({ default: '' }),
+  EMAIL_FROM: str({ default: '"Yesdoc Healthcare" <compliance@yesdochealthcare.co.uk>' }),
   EMAIL_REPLY_TO: str({ default: 'compliance@yesdochealthcare.co.uk' }),
   // Public base URL of the email artwork (this server's /email-assets, or a CDN in production).
   EMAIL_ASSET_BASE_URL: str({ devDefault: `http://localhost:${process.env.PORT ?? 5000}/email-assets` }),

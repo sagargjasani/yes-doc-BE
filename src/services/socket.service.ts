@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { RequestHandler } from 'express';
+import { env } from '../config/env';
 import logger from '../utils/logger';
 import UserModel, { User } from '../models/User.model';
 
@@ -15,7 +16,7 @@ let io: Server | null = null;
 export const initSocket = (httpServer: HttpServer, sessionMiddleware: RequestHandler): Server => {
   io = new Server(httpServer, {
     cors: {
-      origin: true,
+      origin: env.FRONTEND_URL,
       credentials: true,
     },
     pingTimeout: 60000,
