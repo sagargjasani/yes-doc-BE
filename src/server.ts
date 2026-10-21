@@ -8,7 +8,7 @@ import { initSocket } from './services/socket.service';
 // Handling Uncaught Exceptions globally
 process.on('uncaughtException', (err: Error) => {
   logger.error('UNCAUGHT EXCEPTION! 💥 Shutting down...');
-  logger.error(err.name, err.message);
+  logger.error(`${err.name}: ${err.message}`, { stack: err.stack });
   process.exit(1);
 });
 
@@ -42,7 +42,7 @@ startServer();
 // Handling Unhandled Rejections globally
 process.on('unhandledRejection', (err: any) => {
   logger.error('UNHANDLED REJECTION! 💥 Shutting down...');
-  logger.error(err.name, err.message);
+  logger.error(`${err.name}: ${err.message}`, { stack: err.stack });
   if (server) {
     server.close(() => {
       process.exit(1);
